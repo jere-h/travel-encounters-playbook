@@ -1,0 +1,93 @@
+# Tokyo Doorway — GitHub Pages deploy workflow.
+#
+# This is the ONLY supported deploy path. Set the repository's Pages source to
+# "GitHub Actions" (Settings -> Pages -> Build and deployment -> Source).
+#
+# Why this exists: the app ships frozen, native-language social scripts to a
+# traveler who cannot verify them in the moment. Wrong or malformed content can
+# never reach a user, so the deploy itself runs `node validate-content.mjs` and
+# FAILS the whole deploy on any violation BEFORE anything is published. The
+# validator checks field PRESENCE (the documented Step shape) only — content
+# CORRECTNESS is the human native-speaker review gate in content/REVIEW.md,
+# enforced by the README release checklist.
+#
+# Hand-pushing files to the Pages branch / publishing outside this workflow is
+# explicitly OUT OF PROCESS (see README.md): it would bypass the validator and
+# is not a supported way to ship.
+#
+# The site is published as-is — a plain static repo (no bundler, no build step).
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  # Allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+# Least-privilege permissions required to publish to Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment. Do NOT cancel an in-progress run, so a
+# running production deploy always finishes.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # GATE: validate bundled content. This job must pass before deploy runs.
+  validate:
+    name: Validate content
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No dependencies to install: validate-content.mjs is a zero-dependency
+      # Node ES-module script that imports ./content.js directly. If this exits
+      # non-zero (any missing/empty REQUIRED Step field), the job fails and the
+      # deploy job below never runs — bad content cannot reach a user.
+      - name: Validate content shape (field presence)
+        run: node validate-content.mjs
+
+  # BUILD: package the static repo as-is into a Pages artifact.
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # Publish the repository root as-is. There is no build step: the app is
+      # plain HTML + ES-module vanilla JS with all-relative ('./') asset paths,
+      # so it serves correctly under the /<repo>/ Pages base with no transform.
+      - name: Upload static site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+  # DEPLOY: publish the validated artifact to GitHub Pages.
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

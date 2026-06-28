@@ -1,0 +1,459 @@
+// Tokyo Doorway — In-the-Moment Social Scripts
+// ES-module app logic. No framework. Imports the authoritative content bundle
+// and mounts a view-switch (picker <-> stepview) over the DOM in index.html.
+//
+// Cross-module surface is pinned by the shared contract:
+//  - imports { situations, SITUATION_ORDER } from './content.js'
+//  - this is the SOLE module entry; it bootstraps on load (no init() call from HTML)
+//  - it registers the service worker itself (single owner)
+//  - all in-memory state lives here; communication is via the named exports only.
+
+import { situations, SITUATION_ORDER } from './content.js';
+
+// ---------------------------------------------------------------------------
+// In-memory state (never persisted)
+// ---------------------------------------------------------------------------
+const state = {
+  selectedSituation: null, // situationId | null
+  currentStepIndex: 0, // 0-based, clamped to [0, steps.length-1]
+  tipsOpen: false,
+};
+
+// ---------------------------------------------------------------------------
+// DOM references (resolved once on bootstrap)
+// ---------------------------------------------------------------------------
+let el = {};
+
+function cacheDom() {
+  el = {
+    picker: document.getElementById('picker'),
+    stepview: document.getElementById('stepview'),
+    pickerCards: document.getElementById('picker-cards'),
+    stepWhat: document.getElementById('step-what'),
+    stepRomaji: document.getElementById('step-romaji'),
+    stepKanji: document.getElementById('step-kanji'),
+    stepResponse: document.getElementById('step-response'),
+    stepProgress: document.getElementById('step-progress'),
+    nextZone: document.getElementById('next-zone'),
+    backBtn: document.getElementById('back-btn'),
+    tipsBtn: document.getElementById('tips-btn'),
+    tipsDrawer: document.getElementById('tips-drawer'),
+    tipsBody: document.getElementById('tips-body'),
+    tipsClose: document.getElementById('tips-close'),
+    iosInstallHint: document.getElementById('ios-install-hint'),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Inline venue thumbnails (self-contained SVG, no external assets)
+// ---------------------------------------------------------------------------
+const VENUE_ICONS = {
+  convenience_store: `
+    <svg viewBox="0 0 64 64" role="img" aria-hidden="true" focusable="false">
+      <rect x="6" y="20" width="52" height="34" rx="4" fill="#fde7d6"/>
+      <rect x="6" y="14" width="52" height="10" rx="3" fill="#c2410c"/>
+      <rect x="12" y="30" width="16" height="18" rx="2" fill="#ffffff" stroke="#e7e2da"/>
+      <rect x="36" y="30" width="16" height="18" rx="2" fill="#ffffff" stroke="#e7e2da"/>
+      <line x1="20" y1="30" x2="20" y2="48" stroke="#e7e2da"/>
+      <line x1="44" y1="30" x2="44" y2="48" stroke="#e7e2da"/>
+      <rect x="12" y="6" width="6" height="10" rx="2" fill="#1c1b1a"/>
+    </svg>`,
+  izakaya: `
+    <svg viewBox="0 0 64 64" role="img" aria-hidden="true" focusable="false">
+      <rect x="10" y="10" width="44" height="44" rx="6" fill="#7c2d12"/>
+      <circle cx="32" cy="26" r="11" fill="#fde7d6"/>
+      <text x="32" y="32" font-size="14" text-anchor="middle" fill="#7c2d12" font-family="sans-serif">居</text>
+      <rect x="20" y="42" width="24" height="4" rx="2" fill="#fdba74"/>
+      <rect x="20" y="48" width="24" height="3" rx="1.5" fill="#fdba74"/>
+    </svg>`,
+  ramen_ticket_machine: `
+    <svg viewBox="0 0 64 64" role="img" aria-hidden="true" focusable="false">
+      <rect x="14" y="6" width="36" height="52" rx="5" fill="#1f2937"/>
+      <rect x="20" y="12" width="24" height="14" rx="2" fill="#fcd34d"/>
+      <rect x="20" y="30" width="11" height="8" rx="1.5" fill="#c2410c"/>
+      <rect x="33" y="30" width="11" height="8" rx="1.5" fill="#c2410c"/>
+      <rect x="20" y="40" width="11" height="8" rx="1.5" fill="#c2410c"/>
+      <rect x="33" y="40" width="11" height="8" rx="1.5" fill="#c2410c"/>
+      <rect x="22" y="50" width="20" height="5" rx="2" fill="#9ca3af"/>
+    </svg>`,
+};
+
+function venueIcon(situationId) {
+  return VENUE_ICONS[situationId] || '';
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function getSteps() {
+  const sit = state.selectedSituation && situations[state.selectedSituation];
+  return (sit && Array.isArray(sit.steps)) ? sit.steps : [];
+}
+
+function clampIndex(idx, steps) {
+  const max = steps.length - 1;
+  if (max < 0) return 0;
+  if (idx < 0) return 0;
+  if (idx > max) return max;
+  return idx;
+}
+
+function setView(name) {
+  // Show exactly one .view; the inactive one carries [hidden].
+  if (!el.picker || !el.stepview) return;
+  const showStep = name === 'stepview';
+  el.picker.hidden = showStep;
+  el.stepview.hidden = !showStep;
+}
+
+// ---------------------------------------------------------------------------
+// Picker rendering
+// ---------------------------------------------------------------------------
+function renderPicker() {
+  if (!el.pickerCards) return;
+  el.pickerCards.textContent = '';
+
+  SITUATION_ORDER.forEach((id) => {
+    const sit = situations[id];
+    if (!sit) return;
+
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'situation-card';
+    card.setAttribute('data-situation-id', id);
+    card.setAttribute('aria-label', `Open ${sit.label} script`);
+
+    const thumb = document.createElement('span');
+    thumb.className = 'situation-thumb';
+    thumb.innerHTML = venueIcon(id);
+
+    const label = document.createElement('span');
+    label.className = 'situation-label';
+    label.textContent = sit.label;
+
+    const count = document.createElement('span');
+    count.className = 'situation-count';
+    const n = Array.isArray(sit.steps) ? sit.steps.length : 0;
+    count.textContent = `${n} step${n === 1 ? '' : 's'}`;
+
+    card.appendChild(thumb);
+    card.appendChild(label);
+    card.appendChild(count);
+    el.pickerCards.appendChild(card);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Step rendering
+// ---------------------------------------------------------------------------
+function showStep() {
+  const steps = getSteps();
+  if (steps.length === 0) return;
+
+  state.currentStepIndex = clampIndex(state.currentStepIndex, steps);
+  const step = steps[state.currentStepIndex] || {};
+
+  if (el.stepWhat) el.stepWhat.textContent = step.whatHappens || '';
+  if (el.stepRomaji) el.stepRomaji.textContent = step.staffPhraseRomaji || '';
+  if (el.stepKanji) el.stepKanji.textContent = step.staffPhraseKanji || '';
+  if (el.stepResponse) el.stepResponse.textContent = step.visitorResponse || '';
+  if (el.stepProgress) {
+    el.stepProgress.textContent = `Step ${state.currentStepIndex + 1} of ${steps.length}`;
+  }
+
+  // Keep an open Tips drawer in sync with the current step.
+  if (state.tipsOpen) renderTips();
+
+  // Reflect whether a tip exists for this step on the Tips control.
+  if (el.tipsBtn) {
+    const hasTip = !!(step.tip && String(step.tip).trim());
+    el.tipsBtn.setAttribute('data-has-tip', hasTip ? 'true' : 'false');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Navigation — forward advance is swipe-LEFT or the explicit Next zone ONLY.
+// ---------------------------------------------------------------------------
+function selectSituation(id) {
+  if (!situations[id]) return;
+  state.selectedSituation = id;
+  state.currentStepIndex = 0;
+  closeTips(); // ensure a fresh entry without a stale drawer
+  setView('stepview');
+  showStep();
+}
+
+function next() {
+  const steps = getSteps();
+  if (steps.length === 0) return;
+  const target = clampIndex(state.currentStepIndex + 1, steps);
+  if (target === state.currentStepIndex) return; // already at the end
+  state.currentStepIndex = target;
+  showStep();
+}
+
+function prev() {
+  const steps = getSteps();
+  if (steps.length === 0) {
+    backToPicker();
+    return;
+  }
+  if (state.currentStepIndex === 0) {
+    // Back from the first step returns to the picker.
+    backToPicker();
+    return;
+  }
+  state.currentStepIndex = clampIndex(state.currentStepIndex - 1, steps);
+  showStep();
+}
+
+function backToPicker() {
+  closeTips();
+  state.selectedSituation = null;
+  state.currentStepIndex = 0;
+  setView('picker');
+}
+
+// ---------------------------------------------------------------------------
+// Tips drawer — opens/closes WITHOUT mutating the step index.
+// ---------------------------------------------------------------------------
+function renderTips() {
+  if (!el.tipsBody) return;
+  const steps = getSteps();
+  const step = steps[state.currentStepIndex] || {};
+  const tip = step.tip && String(step.tip).trim();
+  if (tip) {
+    el.tipsBody.textContent = tip;
+    el.tipsBody.classList.remove('tips-empty');
+  } else {
+    el.tipsBody.textContent = 'No extra tips for this step — you’re good to go.';
+    el.tipsBody.classList.add('tips-empty');
+  }
+}
+
+function openTips() {
+  if (!el.tipsDrawer) return;
+  state.tipsOpen = true;
+  renderTips();
+  el.tipsDrawer.classList.add('open');
+  el.tipsDrawer.setAttribute('aria-hidden', 'false');
+}
+
+function closeTips() {
+  if (!el.tipsDrawer) return;
+  state.tipsOpen = false;
+  el.tipsDrawer.classList.remove('open');
+  el.tipsDrawer.setAttribute('aria-hidden', 'true');
+}
+
+function toggleTips() {
+  if (state.tipsOpen) closeTips();
+  else openTips();
+}
+
+// ---------------------------------------------------------------------------
+// Swipe handling on the step view.
+//  - swipe LEFT  -> next()
+//  - swipe RIGHT -> prev()
+// A full-screen TAP never advances (no click-to-next on the view).
+// Swipes that start inside interactive controls (Tips/Back/Next/drawer) are
+// ignored so the gesture layer can't fight the buttons.
+// ---------------------------------------------------------------------------
+const SWIPE_MIN_X = 45; // px horizontal travel to count as a swipe
+const SWIPE_MAX_OFF_AXIS = 0.6; // |dy| must be < 0.6 * |dx| (mostly horizontal)
+
+let touch = { active: false, startX: 0, startY: 0, ignore: false };
+
+function isInteractiveTarget(target) {
+  if (!(target instanceof Element)) return false;
+  return !!target.closest(
+    '#tips-drawer, #tips-btn, #back-btn, #next-zone, button, a, input, textarea, select'
+  );
+}
+
+function onTouchStart(e) {
+  if (state.tipsOpen) { touch.active = false; return; }
+  const t = e.touches && e.touches[0];
+  if (!t) return;
+  touch.active = true;
+  touch.startX = t.clientX;
+  touch.startY = t.clientY;
+  touch.ignore = isInteractiveTarget(e.target);
+}
+
+function onTouchEnd(e) {
+  if (!touch.active) return;
+  touch.active = false;
+  if (touch.ignore || state.tipsOpen) return;
+
+  const t = (e.changedTouches && e.changedTouches[0]);
+  if (!t) return;
+
+  const dx = t.clientX - touch.startX;
+  const dy = t.clientY - touch.startY;
+
+  if (Math.abs(dx) < SWIPE_MIN_X) return; // a tap or tiny move — never advances
+  if (Math.abs(dy) > Math.abs(dx) * SWIPE_MAX_OFF_AXIS) return; // too vertical
+
+  if (dx < 0) next(); // swipe left -> forward
+  else prev(); // swipe right -> back
+}
+
+// ---------------------------------------------------------------------------
+// iOS Add-to-Home-Screen hint (iOS Safari, not already standalone).
+// ---------------------------------------------------------------------------
+function isIosSafari() {
+  try {
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    const maxTouch = navigator.maxTouchPoints || 0;
+
+    // Classic iOS devices, plus iPadOS 13+ which reports as "MacIntel" + touch.
+    const iOSDevice = /iPad|iPhone|iPod/.test(ua) ||
+      (platform === 'MacIntel' && maxTouch > 1);
+    if (!iOSDevice) return false;
+
+    // Safari (exclude Chrome/Firefox/Edge in-app browsers on iOS).
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Mercury/.test(ua);
+    return isSafari;
+  } catch (_) {
+    return false;
+  }
+}
+
+function isStandalone() {
+  try {
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+      return true;
+    }
+    // Legacy iOS Safari flag.
+    return navigator.standalone === true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function maybeShowIosHint() {
+  if (!el.iosInstallHint) return;
+  if (isIosSafari() && !isStandalone()) {
+    el.iosInstallHint.hidden = false;
+  } else {
+    el.iosInstallHint.hidden = true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Event wiring
+// ---------------------------------------------------------------------------
+function wireEvents() {
+  // Picker: delegate card taps (tap 1 -> enter step view).
+  if (el.pickerCards) {
+    el.pickerCards.addEventListener('click', (e) => {
+      const card = e.target instanceof Element
+        ? e.target.closest('.situation-card[data-situation-id]')
+        : null;
+      if (!card) return;
+      const id = card.getAttribute('data-situation-id');
+      selectSituation(id);
+    });
+  }
+
+  // Explicit forward control — the ONLY tap target that advances.
+  if (el.nextZone) {
+    el.nextZone.addEventListener('click', (e) => {
+      e.preventDefault();
+      next();
+    });
+  }
+
+  // Explicit back control.
+  if (el.backBtn) {
+    el.backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      prev();
+    });
+  }
+
+  // Tips drawer controls (never mutate the step index).
+  if (el.tipsBtn) {
+    el.tipsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      toggleTips();
+    });
+  }
+  if (el.tipsClose) {
+    el.tipsClose.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeTips();
+    });
+  }
+  if (el.tipsDrawer) {
+    // Tapping the dimmed backdrop (the drawer container itself) closes it,
+    // but taps inside the drawer panel do not.
+    el.tipsDrawer.addEventListener('click', (e) => {
+      if (e.target === el.tipsDrawer) closeTips();
+    });
+  }
+
+  // Swipe gestures live on the step view only.
+  if (el.stepview) {
+    el.stepview.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.stepview.addEventListener('touchend', onTouchEnd, { passive: true });
+  }
+
+  // Keyboard parity (desktop / accessibility) — arrows + Escape.
+  document.addEventListener('keydown', (e) => {
+    if (el.stepview && el.stepview.hidden) return; // only in step view
+    if (e.key === 'Escape' && state.tipsOpen) {
+      closeTips();
+      return;
+    }
+    if (state.tipsOpen) return; // don't navigate behind an open drawer
+    if (e.key === 'ArrowLeft') prev();
+    else if (e.key === 'ArrowRight') next();
+  });
+
+  // Re-evaluate the iOS hint if the display mode changes (e.g. just installed).
+  try {
+    const mq = window.matchMedia && window.matchMedia('(display-mode: standalone)');
+    if (mq && typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', maybeShowIosHint);
+    }
+  } catch (_) { /* non-fatal */ }
+}
+
+// ---------------------------------------------------------------------------
+// Service worker registration — single owner of registration.
+// ---------------------------------------------------------------------------
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('./sw.js', { scope: './' })
+      .catch((err) => {
+        // Offline support is an enhancement; never let a failed registration
+        // surface as an uncaught error.
+        console.warn('Service worker registration failed:', err);
+      });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Bootstrap (runs on module load; DOM is already parsed for module scripts).
+// ---------------------------------------------------------------------------
+function bootstrap() {
+  try {
+    cacheDom();
+    renderPicker();
+    setView('picker');
+    closeTips();
+    maybeShowIosHint();
+    wireEvents();
+    registerServiceWorker();
+  } catch (err) {
+    // Aim for zero uncaught console errors — log and keep the shell usable.
+    console.error('Tokyo Doorway failed to initialize:', err);
+  }
+}
+
+bootstrap();

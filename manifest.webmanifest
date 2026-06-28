@@ -1,0 +1,35 @@
+{
+  "name": "Tokyo Doorway — In-the-Moment Social Scripts",
+  "short_name": "Tokyo Doorway",
+  "description": "Large-text, one-step-per-screen social scripts for three Tokyo venues (convenience store, izakaya, ramen ticket machine). Offline-capable.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#c2410c",
+  "background_color": "#faf8f4",
+  "categories": ["travel", "education", "utilities"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20192%20192'%3E%3Crect%20width='192'%20height='192'%20rx='40'%20fill='%23faf8f4'/%3E%3Ccircle%20cx='96'%20cy='96'%20r='44'%20fill='%23c2410c'/%3E%3Crect%20x='86'%20y='44'%20width='20'%20height='104'%20rx='10'%20fill='%23faf8f4'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Crect%20width='512'%20height='512'%20rx='104'%20fill='%23faf8f4'/%3E%3Ccircle%20cx='256'%20cy='256'%20r='118'%20fill='%23c2410c'/%3E%3Crect%20x='230'%20y='118'%20width='52'%20height='276'%20rx='26'%20fill='%23faf8f4'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20512%20512'%3E%3Crect%20width='512'%20height='512'%20fill='%23c2410c'/%3E%3Ccircle%20cx='256'%20cy='256'%20r='128'%20fill='%23faf8f4'/%3E%3Crect%20x='230'%20y='118'%20width='52'%20height='276'%20rx='26'%20fill='%23c2410c'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
