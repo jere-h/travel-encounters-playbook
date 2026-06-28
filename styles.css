@@ -114,6 +114,38 @@ button {
   border-radius: var(--radius);
 }
 
+/* Screen-reader-only utility — visually removed but available to AT */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link — offscreen until keyboard-focused */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -48px;
+  z-index: 100;
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: top 0.12s ease;
+}
+
+.skip-link:focus {
+  top: var(--space-2);
+}
+
 /* -------------------------------------------------------------------------
    App frame — centered, mobile-first column
    ------------------------------------------------------------------------- */
@@ -135,6 +167,10 @@ button {
 /* -------------------------------------------------------------------------
    Picker view
    ------------------------------------------------------------------------- */
+.picker-header {
+  margin-bottom: var(--space-5);
+}
+
 .app-title,
 .picker-title {
   font-size: var(--font-size-4);
@@ -198,7 +234,7 @@ button {
 }
 
 /* Inline-SVG venue thumbnail */
-.situation-card .card-thumb,
+.situation-card .situation-thumb,
 .situation-card svg {
   flex: 0 0 auto;
   width: 56px;
@@ -207,33 +243,21 @@ button {
   overflow: hidden;
 }
 
-.situation-card .card-body {
+.situation-card .situation-label {
+  display: block;
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.situation-card .card-label {
-  display: block;
   font-size: var(--font-size-3);
   font-weight: 700;
   line-height: 1.25;
   margin: 0;
 }
 
-.situation-card .card-meta {
+.situation-card .situation-count {
   display: block;
   font-size: var(--font-size-1);
   color: var(--color-muted);
   margin-top: var(--space-1);
-}
-
-/* Forward chevron affordance */
-.situation-card .card-go {
-  flex: 0 0 auto;
-  color: var(--color-accent);
-  font-size: var(--font-size-3);
-  font-weight: 700;
-  line-height: 1;
 }
 
 /* -------------------------------------------------------------------------
@@ -246,6 +270,15 @@ button {
   min-height: 100dvh;
 }
 
+/* Step-view header bar — Back (left) · progress (center) · Tips (right) */
+.step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
 /* Progress indicator — "Step 2 of 8" */
 #step-progress {
   font-size: var(--font-size-1);
@@ -253,7 +286,7 @@ button {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-muted);
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
 }
 
 /* The one-step-per-screen card */
@@ -287,15 +320,17 @@ button {
   font-family: var(--font-jp);
   font-size: var(--font-size-5);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.45;
   color: var(--color-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   margin: 0 0 var(--space-2);
 }
 
 #step-romaji {
   font-size: var(--font-size-3);
   font-style: italic;
-  color: var(--color-muted);
+  color: var(--color-fg);
+  opacity: 0.85;
   margin: 0;
 }
 
@@ -481,7 +516,7 @@ button {
   color: var(--color-fg);
 }
 
-#tips-body.empty {
+#tips-body.tips-empty {
   color: var(--color-muted);
   font-style: italic;
   font-size: var(--font-size-2);
@@ -542,7 +577,7 @@ button {
     padding: var(--space-5);
   }
 
-  .situation-card .card-thumb,
+  .situation-card .situation-thumb,
   .situation-card svg {
     width: 64px;
     height: 64px;
