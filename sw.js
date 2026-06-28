@@ -15,8 +15,8 @@
 // handler deletes any cache whose name doesn't match this version.
 const CACHE_NAME = 'tokyo-doorway-v1';
 
-// The shared precache list. Must agree with index.html's asset references and the
-// manifest's icon URLs. Relative ('./') so it resolves correctly under /<repo>/.
+// The shared precache list. Must agree with index.html's asset references.
+// Relative ('./') so it resolves correctly under /<repo>/.
 // sw.js intentionally excludes itself (the browser manages the worker script).
 const PRECACHE = [
   './',
@@ -25,8 +25,6 @@ const PRECACHE = [
   './app.js',
   './content.js',
   './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
 ];
 
 // Install: open the versioned cache and add the shell. Individual icon fetches

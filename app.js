@@ -24,6 +24,10 @@ const state = {
 // ---------------------------------------------------------------------------
 let el = {};
 
+// Element that had focus before the Tips dialog opened, so focus can be
+// restored to it when the dialog closes (WCAG 2.4.3 focus order).
+let tipsLastFocus = null;
+
 function cacheDom() {
   el = {
     picker: document.getElementById('picker'),
@@ -41,6 +45,7 @@ function cacheDom() {
     tipsBody: document.getElementById('tips-body'),
     tipsClose: document.getElementById('tips-close'),
     iosInstallHint: document.getElementById('ios-install-hint'),
+    iosInstallDismiss: document.querySelector('.ios-install-dismiss'),
   };
 }
 
@@ -120,6 +125,7 @@ function renderPicker() {
     const card = document.createElement('button');
     card.type = 'button';
     card.className = 'situation-card';
+    card.setAttribute('role', 'listitem');
     card.setAttribute('data-situation-id', id);
     card.setAttribute('aria-label', `Open ${sit.label} script`);
 
@@ -233,17 +239,34 @@ function renderTips() {
 
 function openTips() {
   if (!el.tipsDrawer) return;
+  // Remember where focus was so we can return it on close.
+  tipsLastFocus = document.activeElement;
   state.tipsOpen = true;
   renderTips();
   el.tipsDrawer.classList.add('open');
   el.tipsDrawer.setAttribute('aria-hidden', 'false');
+  // Make the background uninteractive to keyboard/AT while the modal is open.
+  if (el.stepview) el.stepview.inert = true;
+  // Move focus into the dialog.
+  if (el.tipsClose) el.tipsClose.focus();
 }
 
 function closeTips() {
   if (!el.tipsDrawer) return;
+  // Only restore focus if the drawer was actually open — closeTips() is also
+  // called during bootstrap and on situation entry while it's already closed,
+  // and we must not steal focus in those cases.
+  const wasOpen = state.tipsOpen;
   state.tipsOpen = false;
   el.tipsDrawer.classList.remove('open');
   el.tipsDrawer.setAttribute('aria-hidden', 'true');
+  // Re-enable the background.
+  if (el.stepview) el.stepview.inert = false;
+  if (wasOpen) {
+    if (tipsLastFocus && typeof tipsLastFocus.focus === 'function') tipsLastFocus.focus();
+    else if (el.tipsBtn) el.tipsBtn.focus();
+  }
+  tipsLastFocus = null;
 }
 
 function toggleTips() {
@@ -254,7 +277,10 @@ function toggleTips() {
 // ---------------------------------------------------------------------------
 // Swipe handling on the step view.
 //  - swipe LEFT  -> next()
-//  - swipe RIGHT -> prev()
+//  - swipe RIGHT -> intentionally NOT mapped. The OS/browser edge-back gesture
+//    (iOS Safari / Android Chrome history-back) wins that event chain, so an
+//    in-app prev() mapping was unreliable and could eject the user from the app.
+//    Backward navigation is via the explicit Back button / ArrowRight key.
 // A full-screen TAP never advances (no click-to-next on the view).
 // Swipes that start inside interactive controls (Tips/Back/Next/drawer) are
 // ignored so the gesture layer can't fight the buttons.
@@ -295,8 +321,7 @@ function onTouchEnd(e) {
   if (Math.abs(dx) < SWIPE_MIN_X) return; // a tap or tiny move — never advances
   if (Math.abs(dy) > Math.abs(dx) * SWIPE_MAX_OFF_AXIS) return; // too vertical
 
-  if (dx < 0) next(); // swipe left -> forward
-  else prev(); // swipe right -> back
+  if (dx < 0) next(); // swipe left -> forward (right-swipe deliberately unmapped)
 }
 
 // ---------------------------------------------------------------------------
@@ -395,6 +420,13 @@ function wireEvents() {
     });
   }
 
+  // iOS install hint — "Got it" dismisses for the rest of the session.
+  if (el.iosInstallDismiss) {
+    el.iosInstallDismiss.addEventListener('click', () => {
+      if (el.iosInstallHint) el.iosInstallHint.hidden = true;
+    });
+  }
+
   // Swipe gestures live on the step view only.
   if (el.stepview) {
     el.stepview.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -408,9 +440,26 @@ function wireEvents() {
       closeTips();
       return;
     }
+    // Focus trap: while the dialog is open, keep Tab focus inside the drawer.
+    if (state.tipsOpen && e.key === 'Tab' && el.tipsDrawer) {
+      const focusable = el.tipsDrawer.querySelectorAll(
+        'button, a[href], input, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length > 0) {
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          last.focus();
+          e.preventDefault();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          first.focus();
+          e.preventDefault();
+        }
+      }
+    }
     if (state.tipsOpen) return; // don't navigate behind an open drawer
-    if (e.key === 'ArrowLeft') prev();
-    else if (e.key === 'ArrowRight') next();
+    if (e.key === 'ArrowLeft') next();
+    else if (e.key === 'ArrowRight') prev();
   });
 
   // Re-evaluate the iOS hint if the display mode changes (e.g. just installed).
