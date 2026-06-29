@@ -150,8 +150,8 @@ button {
    App frame — centered, mobile-first column
    ------------------------------------------------------------------------- */
 .app,
-#cityview,
 #picker,
+#overview,
 #stepview {
   width: 100%;
   max-width: var(--content-max);
@@ -170,6 +170,45 @@ button {
    ------------------------------------------------------------------------- */
 .picker-header {
   margin-bottom: var(--space-5);
+}
+
+/* Title + Phrases button on one row at the top of the picker. */
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.header-top .app-title {
+  margin-bottom: var(--space-2);
+}
+
+/* Phrases button — the persistent rescue-phrases entry point on every view. */
+.phrases-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow);
+  transition: background 0.12s ease, filter 0.12s ease;
+}
+
+.phrases-btn:hover {
+  background: #fff6f0;
+}
+
+.phrases-btn:active {
+  filter: brightness(0.97);
 }
 
 .app-title,
@@ -280,23 +319,75 @@ button {
 }
 
 /* -------------------------------------------------------------------------
-   City landing view (home)
+   Overview view — "what to expect" + the tappable, jumpable step list
    ------------------------------------------------------------------------- */
-.city-header {
-  margin-bottom: var(--space-5);
-}
-
-.cities-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.city-card {
+.overview-header {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.overview-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-3);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--color-fg);
+}
+
+.overview-section {
+  margin-bottom: var(--space-5);
+}
+
+.overview-summary {
+  font-size: var(--font-size-3);
+  line-height: 1.4;
+  color: var(--color-fg);
+  margin: 0;
+}
+
+/* "What to expect" bullets — calm, generous spacing, easy to scan. */
+.expect-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.expect-item {
+  position: relative;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-2);
+  line-height: 1.45;
+  color: var(--color-fg);
+}
+
+.expect-item::before {
+  content: "";
+  position: absolute;
+  left: var(--space-2);
+  top: 0.62em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* Jump list — one tappable row per step (number · title · turn tag). */
+.overview-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.step-jump-row {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
   width: 100%;
   min-height: 56px;
@@ -305,22 +396,37 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   color: var(--color-fg);
   transition: transform 0.12s ease, box-shadow 0.12s ease,
     border-color 0.12s ease;
 }
 
-.city-card:hover {
+.step-jump-row:hover {
   border-color: var(--color-accent);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
 }
 
-.city-card:active {
-  transform: scale(0.985);
+.step-jump-row:active {
+  transform: scale(0.99);
 }
 
-.city-card .city-label {
+.step-jump-num {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  color: var(--color-muted);
+}
+
+.step-jump-title {
   flex: 1 1 auto;
   min-width: 0;
   font-size: var(--font-size-3);
@@ -328,79 +434,54 @@ button {
   line-height: 1.25;
 }
 
-/* Coming-soon placeholder cities — muted, non-interactive. */
-.city-card[disabled],
-.city-card[aria-disabled="true"] {
-  color: var(--color-muted);
-  opacity: 0.65;
-  cursor: default;
-  box-shadow: none;
-}
-
-.city-card[disabled]:hover,
-.city-card[aria-disabled="true"]:hover {
-  border-color: var(--color-border);
-  box-shadow: none;
-}
-
-.city-card[disabled]:active,
-.city-card[aria-disabled="true"]:active {
-  transform: none;
-}
-
-.coming-soon-badge {
+/* Turn tag — accent for "Your turn", muted for "Just listen". */
+.step-jump-tag {
   flex: 0 0 auto;
   display: inline-block;
   font-size: var(--font-size-1);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--color-muted);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: var(--space-1) var(--space-3);
 }
 
-/* -------------------------------------------------------------------------
-   Situation view header — Back-to-cities + current city name
-   ------------------------------------------------------------------------- */
-.situation-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
+.step-jump-tag.is-act {
+  color: var(--color-accent);
+  background: #fff6f0;
+  border: 1px solid #f4d4c4;
 }
 
-.back-to-cities-btn {
-  flex: 0 0 auto;
+.step-jump-tag.is-listen {
+  color: var(--color-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+/* "Start from the beginning" — full-width primary action under the jump list. */
+.start-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  width: 100%;
   min-height: 56px;
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  color: var(--color-fg);
-  border: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: 1px solid var(--color-accent);
   border-radius: var(--radius);
-  font-size: var(--font-size-2);
-  font-weight: 600;
-  box-shadow: var(--shadow);
-  transition: border-color 0.12s ease, background 0.12s ease;
-}
-
-.back-to-cities-btn:hover {
-  border-color: var(--color-accent);
-}
-
-.back-to-cities-btn:active {
-  background: var(--color-bg);
-}
-
-.city-name-display {
-  font-size: var(--font-size-2);
+  font-size: var(--font-size-3);
   font-weight: 700;
-  color: var(--color-fg);
+  box-shadow: var(--shadow);
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+
+.start-btn:hover {
+  filter: brightness(1.06);
+}
+
+.start-btn:active {
+  transform: scale(0.985);
 }
 
 /* -------------------------------------------------------------------------
@@ -530,9 +611,9 @@ button {
   margin-top: auto;
 }
 
-#home-btn,
-#back-btn,
-#tips-btn {
+/* Header "Steps" control + bottom-nav "Back" share a calm secondary look. */
+.steps-btn,
+#back-btn {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -550,15 +631,13 @@ button {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-#home-btn:hover,
-#back-btn:hover,
-#tips-btn:hover {
+.steps-btn:hover,
+#back-btn:hover {
   border-color: var(--color-accent);
 }
 
-#home-btn:active,
-#back-btn:active,
-#tips-btn:active {
+.steps-btn:active,
+#back-btn:active {
   background: var(--color-bg);
 }
 
@@ -566,6 +645,63 @@ button {
   opacity: 0.4;
   cursor: default;
   box-shadow: none;
+}
+
+/* Inline Tips button — lives inside the step card, shown only when a tip
+   exists for the current step. Quiet, full-width, never a dead end. */
+.tips-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 48px;
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
+  color: var(--color-accent);
+  border: 1px dashed #f4d4c4;
+  border-radius: var(--radius);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.tips-btn:hover {
+  background: #fff6f0;
+  border-color: var(--color-accent);
+}
+
+/* Step title + the "your turn / just listen" marker chip. */
+.step-title {
+  font-size: var(--font-size-3);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.step-turn {
+  display: inline-block;
+  font-size: var(--font-size-1);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.step-turn.is-act {
+  color: var(--color-accent);
+  background: #fff6f0;
+  border: 1px solid #f4d4c4;
+}
+
+.step-turn.is-listen {
+  color: var(--color-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
 }
 
 /* The ONLY forward-advance tap target */
@@ -602,9 +738,9 @@ button {
 }
 
 /* -------------------------------------------------------------------------
-   Tips drawer overlay
+   Drawers — shared bottom-sheet overlay (Tips + Phrases)
    ------------------------------------------------------------------------- */
-#tips-drawer {
+.drawer {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -617,14 +753,16 @@ button {
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-#tips-drawer.open {
+.drawer.open {
   opacity: 1;
   visibility: visible;
 }
 
-.tips-panel {
+.drawer-panel {
   width: 100%;
   max-width: var(--content-max);
+  max-height: 85vh;
+  overflow-y: auto;
   background: var(--color-surface);
   border-top-left-radius: var(--radius);
   border-top-right-radius: var(--radius);
@@ -635,11 +773,11 @@ button {
   transition: transform 0.24s ease;
 }
 
-#tips-drawer.open .tips-panel {
+.drawer.open .drawer-panel {
   transform: translateY(0);
 }
 
-.tips-header {
+.drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -647,13 +785,13 @@ button {
   margin-bottom: var(--space-3);
 }
 
-.tips-title {
+.drawer-title {
   font-size: var(--font-size-3);
   font-weight: 700;
   margin: 0;
 }
 
-#tips-close {
+.drawer-close {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -669,11 +807,19 @@ button {
   color: var(--color-muted);
 }
 
-#tips-close:hover {
+.drawer-close:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
+.drawer-intro {
+  font-size: var(--font-size-1);
+  line-height: 1.45;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-4);
+}
+
+/* Tips drawer body */
 #tips-body {
   font-size: var(--font-size-3);
   line-height: 1.5;
@@ -684,6 +830,50 @@ button {
   color: var(--color-muted);
   font-style: italic;
   font-size: var(--font-size-2);
+}
+
+/* Phrases drawer body — a list of rescue phrases (en · romaji · kanji). */
+.phrases-body {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.phrase-item {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-bg);
+  padding: var(--space-3) var(--space-4);
+}
+
+.phrase-en {
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin: 0 0 var(--space-1);
+}
+
+.phrase-romaji {
+  font-size: var(--font-size-3);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-fg);
+  margin: 0 0 var(--space-1);
+}
+
+.phrase-kanji {
+  font-family: var(--font-jp);
+  font-size: var(--font-size-2);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--color-muted);
+  margin: 0;
 }
 
 /* -------------------------------------------------------------------------
@@ -737,6 +927,7 @@ button {
 @media (min-width: 600px) {
   .app,
   #picker,
+  #overview,
   #stepview {
     padding: var(--space-6) var(--space-5);
   }

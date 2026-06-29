@@ -1,35 +1,28 @@
-// Travel Encounters Playbook — In-the-Moment Social Scripts
+// Travel Encounters Playbook — In-the-Moment Social Scripts (neurodivergent-first)
 // ES-module app logic. No framework. Imports the authoritative content bundle
-// and mounts a three-view switch (cityview <-> picker <-> stepview) over the DOM
+// and mounts a three-view switch (picker <-> overview <-> stepview) over the DOM
 // in index.html.
 //
+// Design intent: a neurodivergent traveler should be able to (a) see the WHOLE
+// interaction before it happens (the overview), and (b) jump straight to the
+// exact moment they're in right now (the jump list), without scrolling through
+// every step. Plus always-available "rescue" phrases for when things go
+// off-script.
+//
 // Cross-module surface is pinned by the shared contract:
-//  - imports { situations, SITUATION_ORDER } from './content.js'
+//  - imports { situations, SITUATION_ORDER, rescuePhrases } from './content.js'
 //  - this is the SOLE module entry; it bootstraps on load (no init() call from HTML)
 //  - it registers the service worker itself (single owner)
 //  - all in-memory state lives here; communication is via the named exports only.
 
-import { situations, SITUATION_ORDER } from './content.js';
-
-// ---------------------------------------------------------------------------
-// Cities — a layer ABOVE the existing situations content (content.js is
-// untouched). Tokyo is the single active city and owns the bundled situations;
-// the others are visible "coming soon" placeholders.
-// ---------------------------------------------------------------------------
-const CITIES = [
-  { id: 'tokyo', label: 'Tokyo', active: true },
-  { id: 'kyoto', label: 'Kyoto', active: false },
-  { id: 'osaka', label: 'Osaka', active: false },
-];
+import { situations, SITUATION_ORDER, rescuePhrases } from './content.js';
 
 // ---------------------------------------------------------------------------
 // In-memory state (never persisted)
 // ---------------------------------------------------------------------------
 const state = {
-  selectedCity: null, // cityId | null
   selectedSituation: null, // situationId | null
   currentStepIndex: 0, // 0-based, clamped to [0, steps.length-1]
-  tipsOpen: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -37,20 +30,25 @@ const state = {
 // ---------------------------------------------------------------------------
 let el = {};
 
-// Element that had focus before the Tips dialog opened, so focus can be
-// restored to it when the dialog closes (WCAG 2.4.3 focus order).
-let tipsLastFocus = null;
-
 function cacheDom() {
   el = {
-    cityview: document.getElementById('cityview'),
-    citiesList: document.getElementById('cities-list'),
-    backToCitiesBtn: document.getElementById('back-to-cities-btn'),
-    cityNameDisplay: document.getElementById('city-name-display'),
-    homeBtn: document.getElementById('home-btn'),
+    main: document.getElementById('main'),
+    // Picker (home)
     picker: document.getElementById('picker'),
-    stepview: document.getElementById('stepview'),
     pickerCards: document.getElementById('picker-cards'),
+    // Overview
+    overview: document.getElementById('overview'),
+    overviewName: document.getElementById('overview-title'),
+    overviewSummary: document.getElementById('overview-summary'),
+    overviewExpect: document.getElementById('overview-expect'),
+    overviewSteps: document.getElementById('overview-steps'),
+    backToPickerBtn: document.getElementById('back-to-picker-btn'),
+    startBtn: document.getElementById('start-btn'),
+    // Step view
+    stepview: document.getElementById('stepview'),
+    stepsBtn: document.getElementById('steps-btn'),
+    stepTitle: document.getElementById('step-title'),
+    stepTurn: document.getElementById('step-turn'),
     stepWhat: document.getElementById('step-what'),
     stepRomaji: document.getElementById('step-romaji'),
     stepKanji: document.getElementById('step-kanji'),
@@ -58,10 +56,16 @@ function cacheDom() {
     stepProgress: document.getElementById('step-progress'),
     nextZone: document.getElementById('next-zone'),
     backBtn: document.getElementById('back-btn'),
+    // Tips drawer
     tipsBtn: document.getElementById('tips-btn'),
     tipsDrawer: document.getElementById('tips-drawer'),
     tipsBody: document.getElementById('tips-body'),
     tipsClose: document.getElementById('tips-close'),
+    // Phrases drawer
+    phrasesDrawer: document.getElementById('phrases-drawer'),
+    phrasesBody: document.getElementById('phrases-body'),
+    phrasesClose: document.getElementById('phrases-close'),
+    // iOS install hint
     iosInstallHint: document.getElementById('ios-install-hint'),
     iosInstallDismiss: document.querySelector('.ios-install-dismiss'),
   };
@@ -123,51 +127,14 @@ function clampIndex(idx, steps) {
 
 function setView(name) {
   // Show exactly one .view; the inactive ones carry [hidden].
-  // name is one of: 'cityview' | 'picker' | 'stepview'.
-  if (el.cityview) el.cityview.hidden = name !== 'cityview';
+  // name is one of: 'picker' | 'overview' | 'stepview'.
   if (el.picker) el.picker.hidden = name !== 'picker';
+  if (el.overview) el.overview.hidden = name !== 'overview';
   if (el.stepview) el.stepview.hidden = name !== 'stepview';
 }
 
 // ---------------------------------------------------------------------------
-// City landing rendering
-// ---------------------------------------------------------------------------
-function renderCities() {
-  if (!el.citiesList) return;
-  el.citiesList.textContent = '';
-
-  CITIES.forEach((city) => {
-    const card = document.createElement('button');
-    card.type = 'button';
-    card.className = 'city-card';
-    card.setAttribute('role', 'listitem');
-
-    const label = document.createElement('span');
-    label.className = 'city-label';
-    label.textContent = city.label;
-    card.appendChild(label);
-
-    if (city.active) {
-      // Active city: tappable, carries the data attribute the delegate reads.
-      card.setAttribute('data-city-id', city.id);
-      card.setAttribute('aria-label', `Open ${city.label}`);
-    } else {
-      // Coming-soon placeholder: inert (no data-city-id), disabled for AT.
-      card.disabled = true;
-      card.setAttribute('aria-disabled', 'true');
-      card.setAttribute('aria-label', `${city.label} — coming soon`);
-      const badge = document.createElement('span');
-      badge.className = 'coming-soon-badge';
-      badge.textContent = 'Coming soon';
-      card.appendChild(badge);
-    }
-
-    el.citiesList.appendChild(card);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Picker rendering
+// Picker (home) rendering — the three situations for the current scope (Tokyo)
 // ---------------------------------------------------------------------------
 function renderPicker() {
   if (!el.pickerCards) return;
@@ -182,7 +149,7 @@ function renderPicker() {
     card.className = 'situation-card';
     card.setAttribute('role', 'listitem');
     card.setAttribute('data-situation-id', id);
-    card.setAttribute('aria-label', `Open ${sit.label} script`);
+    card.setAttribute('aria-label', `Open ${sit.label} — see what to expect`);
 
     const thumb = document.createElement('span');
     thumb.className = 'situation-thumb';
@@ -210,6 +177,66 @@ function renderPicker() {
 }
 
 // ---------------------------------------------------------------------------
+// Overview rendering — "what to expect" + a tappable, jumpable step list.
+// This is the screen that serves both core needs: knowing the whole arc, and
+// jumping straight to a specific moment.
+// ---------------------------------------------------------------------------
+function turnLabel(yourTurn) {
+  return yourTurn ? 'Your turn' : 'Just listen';
+}
+
+function renderOverview() {
+  const sit = state.selectedSituation && situations[state.selectedSituation];
+  if (!sit) return;
+
+  if (el.overviewName) el.overviewName.textContent = sit.label;
+  if (el.overviewSummary) el.overviewSummary.textContent = sit.summary || '';
+
+  // "What to expect" bullets.
+  if (el.overviewExpect) {
+    el.overviewExpect.textContent = '';
+    const expect = Array.isArray(sit.expect) ? sit.expect : [];
+    expect.forEach((line) => {
+      const li = document.createElement('li');
+      li.className = 'expect-item';
+      li.textContent = line;
+      el.overviewExpect.appendChild(li);
+    });
+  }
+
+  // Jump list — one tappable row per step.
+  if (el.overviewSteps) {
+    el.overviewSteps.textContent = '';
+    const steps = Array.isArray(sit.steps) ? sit.steps : [];
+    steps.forEach((step, index) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'step-jump-row';
+      row.setAttribute('role', 'listitem');
+      row.setAttribute('data-step-index', String(index));
+      row.setAttribute('aria-label', `Step ${index + 1}: ${step.title || ''} — jump here`);
+
+      const num = document.createElement('span');
+      num.className = 'step-jump-num';
+      num.textContent = String(index + 1);
+
+      const title = document.createElement('span');
+      title.className = 'step-jump-title';
+      title.textContent = step.title || `Step ${index + 1}`;
+
+      const tag = document.createElement('span');
+      tag.className = `step-jump-tag ${step.yourTurn ? 'is-act' : 'is-listen'}`;
+      tag.textContent = turnLabel(!!step.yourTurn);
+
+      row.appendChild(num);
+      row.appendChild(title);
+      row.appendChild(tag);
+      el.overviewSteps.appendChild(row);
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Step rendering
 // ---------------------------------------------------------------------------
 function showStep() {
@@ -219,6 +246,19 @@ function showStep() {
   state.currentStepIndex = clampIndex(state.currentStepIndex, steps);
   const step = steps[state.currentStepIndex] || {};
 
+  if (el.stepTitle) el.stepTitle.textContent = step.title || '';
+
+  // "Your turn" vs "Just listen" marker — removes ambiguity about when the user
+  // actually has to do or say something.
+  if (el.stepTurn) {
+    const yourTurn = !!step.yourTurn;
+    el.stepTurn.textContent = yourTurn
+      ? 'Your turn — you respond here'
+      : 'Just listen — no reply needed';
+    el.stepTurn.classList.toggle('is-act', yourTurn);
+    el.stepTurn.classList.toggle('is-listen', !yourTurn);
+  }
+
   if (el.stepWhat) el.stepWhat.textContent = step.whatHappens || '';
   if (el.stepRomaji) el.stepRomaji.textContent = step.staffPhraseRomaji || '';
   if (el.stepKanji) el.stepKanji.textContent = step.staffPhraseKanji || '';
@@ -227,13 +267,11 @@ function showStep() {
     el.stepProgress.textContent = `Step ${state.currentStepIndex + 1} of ${steps.length}`;
   }
 
-  // Keep an open Tips drawer in sync with the current step.
-  if (state.tipsOpen) renderTips();
-
-  // Reflect whether a tip exists for this step on the Tips control.
+  // Inline Tips button — present only when this step actually has a tip, so the
+  // control never appears as a dead end.
   if (el.tipsBtn) {
     const hasTip = !!(step.tip && String(step.tip).trim());
-    el.tipsBtn.setAttribute('data-has-tip', hasTip ? 'true' : 'false');
+    el.tipsBtn.hidden = !hasTip;
   }
 }
 
@@ -244,7 +282,15 @@ function selectSituation(id) {
   if (!situations[id]) return;
   state.selectedSituation = id;
   state.currentStepIndex = 0;
-  closeTips(); // ensure a fresh entry without a stale drawer
+  closeDrawer(); // ensure a fresh entry without a stale drawer
+  renderOverview();
+  setView('overview');
+}
+
+function goToStep(index) {
+  const steps = getSteps();
+  if (steps.length === 0) return;
+  state.currentStepIndex = clampIndex(index, steps);
   setView('stepview');
   showStep();
 }
@@ -260,105 +306,121 @@ function next() {
 
 function prev() {
   const steps = getSteps();
-  if (steps.length === 0) {
-    backToPicker();
-    return;
-  }
-  if (state.currentStepIndex === 0) {
-    // Back from the first step returns to the picker.
-    backToPicker();
+  if (steps.length === 0 || state.currentStepIndex === 0) {
+    // Back from the first step returns to the overview.
+    backToOverview();
     return;
   }
   state.currentStepIndex = clampIndex(state.currentStepIndex - 1, steps);
   showStep();
 }
 
+function backToOverview() {
+  // Back to the OVERVIEW (the jump list) for the current situation.
+  closeDrawer();
+  renderOverview();
+  setView('overview');
+}
+
 function backToPicker() {
-  // Back to the SITUATION view (the picker) for the current city.
-  closeTips();
+  // Return to the situation picker (home), resetting situation/step state.
+  closeDrawer();
   state.selectedSituation = null;
   state.currentStepIndex = 0;
   setView('picker');
 }
 
 // ---------------------------------------------------------------------------
-// City navigation (the three-level IA: cities -> situations -> steps)
+// Drawers (Tips + Phrases) — a single reusable, accessible bottom-sheet helper.
+// A drawer opens/closes WITHOUT mutating the step index, traps Tab focus while
+// open, and restores focus to the opener on close (WCAG 2.4.3).
 // ---------------------------------------------------------------------------
-function selectCity(id) {
-  const city = CITIES.find((c) => c.id === id && c.active);
-  if (!city) return; // inert/unknown city — ignore
-  state.selectedCity = id;
-  if (el.cityNameDisplay) el.cityNameDisplay.textContent = city.label;
-  renderPicker();
-  setView('picker');
+let activeDrawer = null; // { drawer: Element, lastFocus: Element|null } | null
+
+function openDrawer(drawer) {
+  if (!drawer) return;
+  // If a different drawer is open, close it first (restores its opener focus).
+  if (activeDrawer && activeDrawer.drawer !== drawer) closeDrawer();
+
+  activeDrawer = { drawer, lastFocus: document.activeElement };
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  // Make the rest of the app uninteractive to keyboard/AT while the modal is open.
+  if (el.main) el.main.inert = true;
+  const closeBtn = drawer.querySelector('.drawer-close');
+  if (closeBtn) closeBtn.focus();
 }
 
-function backToCities() {
-  // Return to the CITY landing (home), resetting situation/step state.
-  closeTips();
-  state.selectedSituation = null;
-  state.currentStepIndex = 0;
-  state.selectedCity = null;
-  setView('cityview');
+function closeDrawer() {
+  if (!activeDrawer) return;
+  const { drawer, lastFocus } = activeDrawer;
+  activeDrawer = null;
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  if (el.main) el.main.inert = false;
+  if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
 }
 
-// Step-view "Home" control — same destination as back-to-cities.
-function backToHome() {
-  backToCities();
+function trapTab(e, drawer) {
+  const focusable = drawer.querySelectorAll(
+    'button, a[href], input, [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    last.focus();
+    e.preventDefault();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    first.focus();
+    e.preventDefault();
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Tips drawer — opens/closes WITHOUT mutating the step index.
-// ---------------------------------------------------------------------------
-function renderTips() {
-  if (!el.tipsBody) return;
+// Tips drawer — fills from the current step's tip, then opens.
+function openTips() {
   const steps = getSteps();
   const step = steps[state.currentStepIndex] || {};
   const tip = step.tip && String(step.tip).trim();
-  if (tip) {
-    el.tipsBody.textContent = tip;
-    el.tipsBody.classList.remove('tips-empty');
-  } else {
-    el.tipsBody.textContent = 'No extra tips for this step — you’re good to go.';
-    el.tipsBody.classList.add('tips-empty');
+  if (el.tipsBody) {
+    if (tip) {
+      el.tipsBody.textContent = tip;
+      el.tipsBody.classList.remove('tips-empty');
+    } else {
+      el.tipsBody.textContent = 'No extra tips for this step — you’re good to go.';
+      el.tipsBody.classList.add('tips-empty');
+    }
   }
+  openDrawer(el.tipsDrawer);
 }
 
-function openTips() {
-  if (!el.tipsDrawer) return;
-  // Remember where focus was so we can return it on close.
-  tipsLastFocus = document.activeElement;
-  state.tipsOpen = true;
-  renderTips();
-  el.tipsDrawer.classList.add('open');
-  el.tipsDrawer.setAttribute('aria-hidden', 'false');
-  // Make the background uninteractive to keyboard/AT while the modal is open.
-  if (el.stepview) el.stepview.inert = true;
-  // Move focus into the dialog.
-  if (el.tipsClose) el.tipsClose.focus();
-}
+// Phrases drawer — static content; filled once at bootstrap.
+function renderPhrases() {
+  if (!el.phrasesBody) return;
+  el.phrasesBody.textContent = '';
+  (Array.isArray(rescuePhrases) ? rescuePhrases : []).forEach((phrase) => {
+    const li = document.createElement('li');
+    li.className = 'phrase-item';
 
-function closeTips() {
-  if (!el.tipsDrawer) return;
-  // Only restore focus if the drawer was actually open — closeTips() is also
-  // called during bootstrap and on situation entry while it's already closed,
-  // and we must not steal focus in those cases.
-  const wasOpen = state.tipsOpen;
-  state.tipsOpen = false;
-  el.tipsDrawer.classList.remove('open');
-  el.tipsDrawer.setAttribute('aria-hidden', 'true');
-  // Re-enable the background.
-  if (el.stepview) el.stepview.inert = false;
-  if (wasOpen) {
-    if (tipsLastFocus && typeof tipsLastFocus.focus === 'function') tipsLastFocus.focus();
-    else if (el.tipsBtn) el.tipsBtn.focus();
-  }
-  tipsLastFocus = null;
-}
+    const en = document.createElement('p');
+    en.className = 'phrase-en';
+    en.textContent = phrase.en || '';
 
-function toggleTips() {
-  if (state.tipsOpen) closeTips();
-  else openTips();
+    const romaji = document.createElement('p');
+    romaji.className = 'phrase-romaji';
+    romaji.lang = 'ja';
+    romaji.textContent = phrase.romaji || '';
+
+    const kanji = document.createElement('p');
+    kanji.className = 'phrase-kanji';
+    kanji.lang = 'ja';
+    kanji.textContent = phrase.kanji || '';
+
+    li.appendChild(en);
+    li.appendChild(romaji);
+    li.appendChild(kanji);
+    el.phrasesBody.appendChild(li);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -369,8 +431,8 @@ function toggleTips() {
 //    in-app prev() mapping was unreliable and could eject the user from the app.
 //    Backward navigation is via the explicit Back button / ArrowRight key.
 // A full-screen TAP never advances (no click-to-next on the view).
-// Swipes that start inside interactive controls (Tips/Back/Next/drawer) are
-// ignored so the gesture layer can't fight the buttons.
+// Swipes that start inside interactive controls are ignored so the gesture layer
+// can't fight the buttons.
 // ---------------------------------------------------------------------------
 const SWIPE_MIN_X = 45; // px horizontal travel to count as a swipe
 const SWIPE_MAX_OFF_AXIS = 0.6; // |dy| must be < 0.6 * |dx| (mostly horizontal)
@@ -380,12 +442,12 @@ let touch = { active: false, startX: 0, startY: 0, ignore: false };
 function isInteractiveTarget(target) {
   if (!(target instanceof Element)) return false;
   return !!target.closest(
-    '#tips-drawer, #tips-btn, #back-btn, #home-btn, #next-zone, button, a, input, textarea, select'
+    '#tips-drawer, #phrases-drawer, #tips-btn, #back-btn, #steps-btn, #next-zone, .phrases-btn, button, a, input, textarea, select'
   );
 }
 
 function onTouchStart(e) {
-  if (state.tipsOpen) { touch.active = false; return; }
+  if (activeDrawer) { touch.active = false; return; }
   const t = e.touches && e.touches[0];
   if (!t) return;
   touch.active = true;
@@ -397,7 +459,7 @@ function onTouchStart(e) {
 function onTouchEnd(e) {
   if (!touch.active) return;
   touch.active = false;
-  if (touch.ignore || state.tipsOpen) return;
+  if (touch.ignore || activeDrawer) return;
 
   const t = (e.changedTouches && e.changedTouches[0]);
   if (!t) return;
@@ -458,80 +520,96 @@ function maybeShowIosHint() {
 // Event wiring
 // ---------------------------------------------------------------------------
 function wireEvents() {
-  // City landing: delegate city-button taps (active cities carry data-city-id;
-  // coming-soon cards have none and are inert).
-  if (el.citiesList) {
-    el.citiesList.addEventListener('click', (e) => {
-      const card = e.target instanceof Element
-        ? e.target.closest('.city-card[data-city-id]')
-        : null;
-      if (!card) return;
-      selectCity(card.getAttribute('data-city-id'));
-    });
-  }
-
-  // Back-to-cities (from the situation view) and Home (from the step view).
-  if (el.backToCitiesBtn) {
-    el.backToCitiesBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      backToCities();
-    });
-  }
-  if (el.homeBtn) {
-    el.homeBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      backToHome();
-    });
-  }
-
-  // Picker: delegate card taps (tap 1 -> enter step view).
+  // Picker: delegate situation-card taps (tap 1 -> enter overview).
   if (el.pickerCards) {
     el.pickerCards.addEventListener('click', (e) => {
       const card = e.target instanceof Element
         ? e.target.closest('.situation-card[data-situation-id]')
         : null;
       if (!card) return;
-      const id = card.getAttribute('data-situation-id');
-      selectSituation(id);
+      selectSituation(card.getAttribute('data-situation-id'));
     });
   }
 
-  // Explicit forward control — the ONLY tap target that advances.
+  // Overview: back to picker, jump-list rows, and "start from the beginning".
+  if (el.backToPickerBtn) {
+    el.backToPickerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      backToPicker();
+    });
+  }
+  if (el.overviewSteps) {
+    el.overviewSteps.addEventListener('click', (e) => {
+      const row = e.target instanceof Element
+        ? e.target.closest('.step-jump-row[data-step-index]')
+        : null;
+      if (!row) return;
+      goToStep(Number(row.getAttribute('data-step-index')));
+    });
+  }
+  if (el.startBtn) {
+    el.startBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      goToStep(0);
+    });
+  }
+
+  // Step view: Steps (back to overview), Next (the ONLY tap target that
+  // advances), Back, and the inline Tips button.
+  if (el.stepsBtn) {
+    el.stepsBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      backToOverview();
+    });
+  }
   if (el.nextZone) {
     el.nextZone.addEventListener('click', (e) => {
       e.preventDefault();
       next();
     });
   }
-
-  // Explicit back control.
   if (el.backBtn) {
     el.backBtn.addEventListener('click', (e) => {
       e.preventDefault();
       prev();
     });
   }
-
-  // Tips drawer controls (never mutate the step index).
   if (el.tipsBtn) {
     el.tipsBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      toggleTips();
+      openTips();
     });
   }
+
+  // Phrases buttons (present on every view) — open the rescue-phrases drawer.
+  document.querySelectorAll('[data-open-phrases]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openDrawer(el.phrasesDrawer);
+    });
+  });
+
+  // Drawer close buttons + backdrop taps.
   if (el.tipsClose) {
     el.tipsClose.addEventListener('click', (e) => {
       e.preventDefault();
-      closeTips();
+      closeDrawer();
     });
   }
-  if (el.tipsDrawer) {
+  if (el.phrasesClose) {
+    el.phrasesClose.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeDrawer();
+    });
+  }
+  [el.tipsDrawer, el.phrasesDrawer].forEach((drawer) => {
+    if (!drawer) return;
     // Tapping the dimmed backdrop (the drawer container itself) closes it,
-    // but taps inside the drawer panel do not.
-    el.tipsDrawer.addEventListener('click', (e) => {
-      if (e.target === el.tipsDrawer) closeTips();
+    // but taps inside the panel do not.
+    drawer.addEventListener('click', (e) => {
+      if (e.target === drawer) closeDrawer();
     });
-  }
+  });
 
   // iOS install hint — "Got it" dismisses for the rest of the session.
   if (el.iosInstallDismiss) {
@@ -546,31 +624,14 @@ function wireEvents() {
     el.stepview.addEventListener('touchend', onTouchEnd, { passive: true });
   }
 
-  // Keyboard parity (desktop / accessibility) — arrows + Escape.
+  // Keyboard parity (desktop / accessibility) — arrows + Escape + Tab trap.
   document.addEventListener('keydown', (e) => {
-    if (el.stepview && el.stepview.hidden) return; // only in step view
-    if (e.key === 'Escape' && state.tipsOpen) {
-      closeTips();
-      return;
+    if (activeDrawer) {
+      if (e.key === 'Escape') { closeDrawer(); return; }
+      if (e.key === 'Tab') trapTab(e, activeDrawer.drawer);
+      return; // never navigate behind an open drawer
     }
-    // Focus trap: while the dialog is open, keep Tab focus inside the drawer.
-    if (state.tipsOpen && e.key === 'Tab' && el.tipsDrawer) {
-      const focusable = el.tipsDrawer.querySelectorAll(
-        'button, a[href], input, [tabindex]:not([tabindex="-1"])'
-      );
-      if (focusable.length > 0) {
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          last.focus();
-          e.preventDefault();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          first.focus();
-          e.preventDefault();
-        }
-      }
-    }
-    if (state.tipsOpen) return; // don't navigate behind an open drawer
+    if (!el.stepview || el.stepview.hidden) return; // arrows only in step view
     if (e.key === 'ArrowLeft') next();
     else if (e.key === 'ArrowRight') prev();
   });
@@ -606,9 +667,9 @@ function registerServiceWorker() {
 function bootstrap() {
   try {
     cacheDom();
-    renderCities();
-    setView('cityview');
-    closeTips();
+    renderPicker();
+    renderPhrases();
+    setView('picker');
     maybeShowIosHint();
     wireEvents();
     registerServiceWorker();

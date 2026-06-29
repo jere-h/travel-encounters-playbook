@@ -1,7 +1,7 @@
 {
-  "name": "Travel Encounters Playbook — In-the-Moment Social Scripts",
-  "short_name": "Encounters",
-  "description": "Large-text, one-step-per-screen social scripts for travelers worldwide. Offline-capable.",
+  "name": "Travel Encounters Playbook — Know What to Expect",
+  "short_name": "What to Expect",
+  "description": "Calm, predictable social scripts for navigating Japan in a foreign language — built for neurodivergent travelers. See the whole interaction up front, jump to the exact step you need, with always-available rescue phrases. Works offline.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "./",
