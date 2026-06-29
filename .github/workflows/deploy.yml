@@ -1,4 +1,4 @@
-# Tokyo Doorway — GitHub Pages deploy workflow.
+# Travel Encounters Playbook — GitHub Pages deploy workflow.
 #
 # This is the ONLY supported deploy path. Set the repository's Pages source to
 # "GitHub Actions" (Settings -> Pages -> Build and deployment -> Source).

@@ -1,6 +1,7 @@
-// Tokyo Doorway — In-the-Moment Social Scripts
+// Travel Encounters Playbook — In-the-Moment Social Scripts
 // ES-module app logic. No framework. Imports the authoritative content bundle
-// and mounts a view-switch (picker <-> stepview) over the DOM in index.html.
+// and mounts a three-view switch (cityview <-> picker <-> stepview) over the DOM
+// in index.html.
 //
 // Cross-module surface is pinned by the shared contract:
 //  - imports { situations, SITUATION_ORDER } from './content.js'
@@ -11,9 +12,21 @@
 import { situations, SITUATION_ORDER } from './content.js';
 
 // ---------------------------------------------------------------------------
+// Cities — a layer ABOVE the existing situations content (content.js is
+// untouched). Tokyo is the single active city and owns the bundled situations;
+// the others are visible "coming soon" placeholders.
+// ---------------------------------------------------------------------------
+const CITIES = [
+  { id: 'tokyo', label: 'Tokyo', active: true },
+  { id: 'kyoto', label: 'Kyoto', active: false },
+  { id: 'osaka', label: 'Osaka', active: false },
+];
+
+// ---------------------------------------------------------------------------
 // In-memory state (never persisted)
 // ---------------------------------------------------------------------------
 const state = {
+  selectedCity: null, // cityId | null
   selectedSituation: null, // situationId | null
   currentStepIndex: 0, // 0-based, clamped to [0, steps.length-1]
   tipsOpen: false,
@@ -30,6 +43,11 @@ let tipsLastFocus = null;
 
 function cacheDom() {
   el = {
+    cityview: document.getElementById('cityview'),
+    citiesList: document.getElementById('cities-list'),
+    backToCitiesBtn: document.getElementById('back-to-cities-btn'),
+    cityNameDisplay: document.getElementById('city-name-display'),
+    homeBtn: document.getElementById('home-btn'),
     picker: document.getElementById('picker'),
     stepview: document.getElementById('stepview'),
     pickerCards: document.getElementById('picker-cards'),
@@ -104,11 +122,48 @@ function clampIndex(idx, steps) {
 }
 
 function setView(name) {
-  // Show exactly one .view; the inactive one carries [hidden].
-  if (!el.picker || !el.stepview) return;
-  const showStep = name === 'stepview';
-  el.picker.hidden = showStep;
-  el.stepview.hidden = !showStep;
+  // Show exactly one .view; the inactive ones carry [hidden].
+  // name is one of: 'cityview' | 'picker' | 'stepview'.
+  if (el.cityview) el.cityview.hidden = name !== 'cityview';
+  if (el.picker) el.picker.hidden = name !== 'picker';
+  if (el.stepview) el.stepview.hidden = name !== 'stepview';
+}
+
+// ---------------------------------------------------------------------------
+// City landing rendering
+// ---------------------------------------------------------------------------
+function renderCities() {
+  if (!el.citiesList) return;
+  el.citiesList.textContent = '';
+
+  CITIES.forEach((city) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'city-card';
+    card.setAttribute('role', 'listitem');
+
+    const label = document.createElement('span');
+    label.className = 'city-label';
+    label.textContent = city.label;
+    card.appendChild(label);
+
+    if (city.active) {
+      // Active city: tappable, carries the data attribute the delegate reads.
+      card.setAttribute('data-city-id', city.id);
+      card.setAttribute('aria-label', `Open ${city.label}`);
+    } else {
+      // Coming-soon placeholder: inert (no data-city-id), disabled for AT.
+      card.disabled = true;
+      card.setAttribute('aria-disabled', 'true');
+      card.setAttribute('aria-label', `${city.label} — coming soon`);
+      const badge = document.createElement('span');
+      badge.className = 'coming-soon-badge';
+      badge.textContent = 'Coming soon';
+      card.appendChild(badge);
+    }
+
+    el.citiesList.appendChild(card);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -137,10 +192,15 @@ function renderPicker() {
     label.className = 'situation-label';
     label.textContent = sit.label;
 
+    // Outer wrapper forces the badge onto its own indented line; the inner pill
+    // hugs its text so the chip never stretches the whole card width.
     const count = document.createElement('span');
     count.className = 'situation-count';
+    const countPill = document.createElement('span');
+    countPill.className = 'situation-count-pill';
     const n = Array.isArray(sit.steps) ? sit.steps.length : 0;
-    count.textContent = `${n} step${n === 1 ? '' : 's'}`;
+    countPill.textContent = `${n} step${n === 1 ? '' : 's'}`;
+    count.appendChild(countPill);
 
     card.appendChild(thumb);
     card.appendChild(label);
@@ -214,10 +274,37 @@ function prev() {
 }
 
 function backToPicker() {
+  // Back to the SITUATION view (the picker) for the current city.
   closeTips();
   state.selectedSituation = null;
   state.currentStepIndex = 0;
   setView('picker');
+}
+
+// ---------------------------------------------------------------------------
+// City navigation (the three-level IA: cities -> situations -> steps)
+// ---------------------------------------------------------------------------
+function selectCity(id) {
+  const city = CITIES.find((c) => c.id === id && c.active);
+  if (!city) return; // inert/unknown city — ignore
+  state.selectedCity = id;
+  if (el.cityNameDisplay) el.cityNameDisplay.textContent = city.label;
+  renderPicker();
+  setView('picker');
+}
+
+function backToCities() {
+  // Return to the CITY landing (home), resetting situation/step state.
+  closeTips();
+  state.selectedSituation = null;
+  state.currentStepIndex = 0;
+  state.selectedCity = null;
+  setView('cityview');
+}
+
+// Step-view "Home" control — same destination as back-to-cities.
+function backToHome() {
+  backToCities();
 }
 
 // ---------------------------------------------------------------------------
@@ -293,7 +380,7 @@ let touch = { active: false, startX: 0, startY: 0, ignore: false };
 function isInteractiveTarget(target) {
   if (!(target instanceof Element)) return false;
   return !!target.closest(
-    '#tips-drawer, #tips-btn, #back-btn, #next-zone, button, a, input, textarea, select'
+    '#tips-drawer, #tips-btn, #back-btn, #home-btn, #next-zone, button, a, input, textarea, select'
   );
 }
 
@@ -371,6 +458,32 @@ function maybeShowIosHint() {
 // Event wiring
 // ---------------------------------------------------------------------------
 function wireEvents() {
+  // City landing: delegate city-button taps (active cities carry data-city-id;
+  // coming-soon cards have none and are inert).
+  if (el.citiesList) {
+    el.citiesList.addEventListener('click', (e) => {
+      const card = e.target instanceof Element
+        ? e.target.closest('.city-card[data-city-id]')
+        : null;
+      if (!card) return;
+      selectCity(card.getAttribute('data-city-id'));
+    });
+  }
+
+  // Back-to-cities (from the situation view) and Home (from the step view).
+  if (el.backToCitiesBtn) {
+    el.backToCitiesBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      backToCities();
+    });
+  }
+  if (el.homeBtn) {
+    el.homeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      backToHome();
+    });
+  }
+
   // Picker: delegate card taps (tap 1 -> enter step view).
   if (el.pickerCards) {
     el.pickerCards.addEventListener('click', (e) => {
@@ -493,15 +606,15 @@ function registerServiceWorker() {
 function bootstrap() {
   try {
     cacheDom();
-    renderPicker();
-    setView('picker');
+    renderCities();
+    setView('cityview');
     closeTips();
     maybeShowIosHint();
     wireEvents();
     registerServiceWorker();
   } catch (err) {
     // Aim for zero uncaught console errors — log and keep the shell usable.
-    console.error('Tokyo Doorway failed to initialize:', err);
+    console.error('Travel Encounters Playbook failed to initialize:', err);
   }
 }
 

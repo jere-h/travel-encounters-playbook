@@ -3,28 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tokyo Doorway — large-text, one-step-per-screen social scripts for first-time travelers in Tokyo. Offline-capable.">
+  <meta name="description" content="Travel Encounters Playbook — large-text, one-step-per-screen social scripts for travelers. Offline-capable.">
   <meta name="theme-color" content="#c2410c">
-  <title>Tokyo Doorway — In-the-Moment Social Scripts</title>
+  <title>Travel Encounters Playbook — In-the-Moment Social Scripts</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <!-- Inline data-URI favicon/apple-touch-icon so no external image file is needed (works offline + under /<repo>/). -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23c2410c'/%3E%3Ctext%20x='32'%20y='44'%20font-size='34'%20text-anchor='middle'%20fill='%23ffffff'%20font-family='system-ui,sans-serif'%3E%E2%9B%A9%3C/text%3E%3C/svg%3E">
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2064%2064'%3E%3Crect%20width='64'%20height='64'%20rx='14'%20fill='%23c2410c'/%3E%3Ctext%20x='32'%20y='44'%20font-size='34'%20text-anchor='middle'%20fill='%23ffffff'%20font-family='system-ui,sans-serif'%3E%E2%9B%A9%3C/text%3E%3C/svg%3E">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Tokyo Doorway">
+  <meta name="apple-mobile-web-app-title" content="Travel Encounters">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <main id="main">
-    <!-- ===================== PICKER VIEW ===================== -->
-    <section id="picker" class="view" aria-labelledby="picker-title">
-      <header class="picker-header">
-        <h1 id="picker-title" class="app-title">Tokyo Doorway</h1>
+    <!-- ===================== CITY VIEW (home / landing) ===================== -->
+    <section id="cityview" class="view" aria-labelledby="city-title">
+      <header class="city-header">
+        <h1 id="city-title" class="app-title">Travel Encounters Playbook</h1>
         <p class="app-subtitle">In-the-moment social scripts</p>
-        <p id="scope-line" class="scope-line">Tokyo · 3 situations · more coming</p>
+        <p class="scope-line">Pick a city · more coming</p>
+      </header>
+
+      <p class="picker-intro">Choose your city. We'll walk you through real situations, one step at a time.</p>
+
+      <!-- app.js fills this with city buttons (Tokyo active + Kyoto/Osaka coming soon) -->
+      <div id="cities-list" class="cities-list" role="list" aria-label="Choose a city"></div>
+
+      <p class="disclaimer">
+        Informal travel scripts — phrasing may be imperfect and is not official guidance.
+        When in doubt, a smile and a point work everywhere.
+      </p>
+    </section>
+
+    <!-- ===================== SITUATION VIEW (picker) ===================== -->
+    <section id="picker" class="view" aria-labelledby="picker-title" hidden>
+      <header class="situation-header">
+        <button id="back-to-cities-btn" class="back-to-cities-btn" type="button" aria-label="Back to cities">
+          <span aria-hidden="true">&larr;</span> Cities
+        </button>
+        <span id="city-name-display" class="city-name-display"></span>
+      </header>
+
+      <header class="picker-header">
+        <h1 id="picker-title" class="app-title">Travel Encounters Playbook</h1>
+        <p class="app-subtitle">In-the-moment social scripts</p>
+        <p id="scope-line" class="scope-line">Tokyo · 3 situations · more cities coming</p>
       </header>
 
       <p class="picker-intro">Pick where you are. We'll walk you through it, one step at a time.</p>
@@ -41,11 +67,14 @@
     <!-- ===================== STEP VIEW ===================== -->
     <section id="stepview" class="view" aria-labelledby="stepview-title" hidden>
       <header class="step-header">
+        <button id="home-btn" class="home-btn" type="button" aria-label="Home — back to cities">
+          <span aria-hidden="true">&#8962;</span> Home
+        </button>
         <button id="back-btn" class="back-btn" type="button" aria-label="Go back">
           <span aria-hidden="true">&larr;</span> Back
         </button>
         <span id="step-progress" class="step-progress" aria-live="polite">Step 1 of 1</span>
-        <button id="tips-btn" class="tips-btn" type="button" aria-haspopup="dialog" aria-controls="tips-drawer">
+        <button id="tips-btn" class="tips-btn" type="button" aria-label="Open tips for this step" aria-haspopup="dialog" aria-controls="tips-drawer">
           Tips
         </button>
       </header>
@@ -57,8 +86,8 @@
 
         <div class="phrase-block" aria-label="What staff may say">
           <p class="field-label">They may say</p>
-          <p id="step-kanji" class="step-kanji" lang="ja"></p>
           <p id="step-romaji" class="step-romaji" lang="ja"></p>
+          <p id="step-kanji" class="step-kanji" lang="ja"></p>
         </div>
 
         <div class="response-block" aria-label="What you can say or do">

@@ -1,6 +1,6 @@
-# Tokyo Doorway — Native-Speaker Content Review Gate
+# Travel Encounters Playbook — Native-Speaker Content Review Gate
 
-This file is the **load-bearing correctness gate** for Tokyo Doorway.
+This file is the **load-bearing correctness gate** for Travel Encounters Playbook.
 
 The dev-only validator (`validate-content.mjs`) and the deploy workflow can only
 prove that every step has the required fields *present and non-empty*. They

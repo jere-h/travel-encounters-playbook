@@ -1,5 +1,5 @@
 /* =========================================================================
-   Tokyo Doorway — In-the-Moment Social Scripts
+   Travel Encounters Playbook — In-the-Moment Social Scripts
    Dedicated stylesheet (Curator-gated).
 
    Mobile-first, large-text, calm. Establishes a spacing scale, a calm color
@@ -150,6 +150,7 @@ button {
    App frame — centered, mobile-first column
    ------------------------------------------------------------------------- */
 .app,
+#cityview,
 #picker,
 #stepview {
   width: 100%;
@@ -186,7 +187,7 @@ button {
   margin: 0 0 var(--space-4);
 }
 
-/* Scope line — "Tokyo · 3 situations · more coming" */
+/* Scope line — "Tokyo · 3 situations · more cities coming" */
 #scope-line {
   display: inline-block;
   font-size: var(--font-size-1);
@@ -210,8 +211,9 @@ button {
 
 .situation-card {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-4);
   width: 100%;
   text-align: left;
   background: var(--color-surface);
@@ -253,11 +255,152 @@ button {
   margin: 0;
 }
 
+/* Step count — a tidy secondary badge on its own line beneath the label, never
+   squeezed against it. The OUTER .situation-count is a full-width flex line that
+   forces a wrap below the icon+label row and indents to align under the label;
+   the INNER .situation-count-pill is what carries the pill chrome, so the badge
+   hugs its text instead of stretching the background across the whole card. */
 .situation-card .situation-count {
-  display: block;
-  font-size: var(--font-size-1);
-  color: var(--color-muted);
+  flex: 0 0 100%;
+  display: flex;
   margin-top: var(--space-1);
+  margin-left: calc(56px + var(--space-4));
+}
+
+.situation-card .situation-count-pill {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+/* -------------------------------------------------------------------------
+   City landing view (home)
+   ------------------------------------------------------------------------- */
+.city-header {
+  margin-bottom: var(--space-5);
+}
+
+.cities-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.city-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 56px;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+  color: var(--color-fg);
+  transition: transform 0.12s ease, box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.city-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+.city-card:active {
+  transform: scale(0.985);
+}
+
+.city-card .city-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--font-size-3);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Coming-soon placeholder cities — muted, non-interactive. */
+.city-card[disabled],
+.city-card[aria-disabled="true"] {
+  color: var(--color-muted);
+  opacity: 0.65;
+  cursor: default;
+  box-shadow: none;
+}
+
+.city-card[disabled]:hover,
+.city-card[aria-disabled="true"]:hover {
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+
+.city-card[disabled]:active,
+.city-card[aria-disabled="true"]:active {
+  transform: none;
+}
+
+.coming-soon-badge {
+  flex: 0 0 auto;
+  display: inline-block;
+  font-size: var(--font-size-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+}
+
+/* -------------------------------------------------------------------------
+   Situation view header — Back-to-cities + current city name
+   ------------------------------------------------------------------------- */
+.situation-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.back-to-cities-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: var(--font-size-2);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.back-to-cities-btn:hover {
+  border-color: var(--color-accent);
+}
+
+.back-to-cities-btn:active {
+  background: var(--color-bg);
+}
+
+.city-name-display {
+  font-size: var(--font-size-2);
+  font-weight: 700;
+  color: var(--color-fg);
 }
 
 /* -------------------------------------------------------------------------
@@ -270,23 +413,38 @@ button {
   min-height: 100dvh;
 }
 
-/* Step-view header bar — Back (left) · progress (center) · Tips (right) */
+/* Step-view header bar — Home + Back (left) · progress (center) · Tips (right).
+   Progress takes the flexible middle so the two button clusters anchor the ends
+   and the count stays visually centered; it wraps to its own full-width line
+   (order:4) on very narrow screens instead of stranding between the buttons. */
 .step-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
 
 /* Progress indicator — "Step 2 of 8" */
 #step-progress {
+  flex: 1 1 auto;
+  min-width: max-content;
+  text-align: center;
   font-size: var(--font-size-1);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-muted);
   margin-bottom: 0;
+}
+
+/* Narrow phones: keep the three controls on one row and let the progress count
+   drop to its own tidy centered line beneath, rather than wrapping mid-cluster. */
+@media (max-width: 360px) {
+  #step-progress {
+    order: 4;
+    flex-basis: 100%;
+  }
 }
 
 /* The one-step-per-screen card */
@@ -309,28 +467,31 @@ button {
   margin: 0 0 var(--space-5);
 }
 
-/* Staff phrase block — kanji big, romaji as supporting label */
+/* Staff phrase block — romaji leads (the line the eye lands on), kanji is a
+   smaller secondary reference for travelers who can't read Japanese. */
 .phrase-block {
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-4);
   margin-bottom: var(--space-5);
 }
 
-#step-kanji {
-  font-family: var(--font-jp);
-  font-size: var(--font-size-5);
+/* Romaji — the prominent, large pronunciation line the eye lands on first. */
+#step-romaji {
+  font-size: var(--font-size-4);
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.3;
   color: var(--color-fg);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  opacity: 1;
   margin: 0 0 var(--space-2);
 }
 
-#step-romaji {
-  font-size: var(--font-size-3);
-  font-style: italic;
-  color: var(--color-fg);
-  opacity: 0.85;
+/* Kanji — smaller secondary reference beneath the romaji. */
+#step-kanji {
+  font-family: var(--font-jp);
+  font-size: var(--font-size-2);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--color-muted);
   margin: 0;
 }
 
@@ -369,6 +530,7 @@ button {
   margin-top: auto;
 }
 
+#home-btn,
 #back-btn,
 #tips-btn {
   flex: 0 0 auto;
@@ -388,11 +550,13 @@ button {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
+#home-btn:hover,
 #back-btn:hover,
 #tips-btn:hover {
   border-color: var(--color-accent);
 }
 
+#home-btn:active,
 #back-btn:active,
 #tips-btn:active {
   background: var(--color-bg);
@@ -534,6 +698,15 @@ button {
   margin-top: var(--space-5);
 }
 
+/* Intro line on the city landing + situation picker — calm body-weight lead-in
+   above the card list (shares the design tokens; no inline restyling). */
+.picker-intro {
+  font-size: var(--font-size-2);
+  line-height: 1.5;
+  color: var(--color-fg);
+  margin: 0 0 var(--space-5);
+}
+
 /* -------------------------------------------------------------------------
    iOS Add-to-Home-Screen hint
    ------------------------------------------------------------------------- */
@@ -581,6 +754,10 @@ button {
   .situation-card svg {
     width: 64px;
     height: 64px;
+  }
+
+  .situation-card .situation-count {
+    margin-left: calc(64px + var(--space-4));
   }
 
   #step-what {

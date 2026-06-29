@@ -1,8 +1,8 @@
-# Tokyo Doorway — In-the-Moment Social Scripts
+# Travel Encounters Playbook — In-the-Moment Social Scripts
 
-A fully static, offline-capable PWA that gives a frozen, first-time traveler in
-Tokyo a large-text, **one-step-per-screen** social script for three concrete
-venues:
+A fully static, offline-capable PWA that gives travelers a large-text,
+**one-step-per-screen** social script for key situations and venues. Starting
+with Tokyo:
 
 - **Convenience Store** (konbini checkout)
 - **Izakaya** (being seated + ordering)
@@ -22,9 +22,9 @@ mode** under the GitHub Pages `/<repo>/` base.
 
 ## Scope (deliberate, and on purpose)
 
-This app intentionally ships **Tokyo · 3 situations** and nothing more. The
-picker prints that scope line (`#scope-line`: "Tokyo · 3 situations · more
-coming") so the user is never misled about coverage. Three fully authored,
+This app intentionally ships **Tokyo · 3 situations** as the debut city. The
+situation view prints that scope line (`#scope-line`: "Tokyo · 3 situations ·
+more cities coming") so the user is never misled about coverage. Three fully authored,
 native-reviewed scripts that actually work in the moment beat fifty thin,
 unreviewed ones. Adding a situation is a deliberate, reviewed act (see the
 release checklist), not a drive-by edit.
@@ -162,7 +162,7 @@ Do **not** deploy unless **all** of these are true:
       sign-off, that row is **stale** and must be re-signed before release.
 - [ ] The persistent `.disclaimer` line still renders on **both** the picker and
       the step view.
-- [ ] The `#scope-line` still honestly reflects coverage ("Tokyo · 3 situations").
+- [ ] The `#scope-line` still honestly reflects coverage ("Tokyo · 3 situations · more cities coming").
 - [ ] The **offline acceptance steps below pass on a real iOS Safari device**
       against the actual Pages URL — not just localhost, not just desktop.
 - [ ] No uncaught errors in the browser console on the picker and across a full

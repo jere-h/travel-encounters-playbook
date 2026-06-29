@@ -1,4 +1,4 @@
-// content.js — Tokyo Doorway authoritative content bundle.
+// content.js — Travel Encounters Playbook authoritative content bundle.
 //
 // This ES module is the single source of truth for what the app shows. It is
 // imported by app.js (to render the picker + step-through views) and by the
@@ -24,7 +24,7 @@
 // situations MUST have EXACTLY these three keys:
 //   'convenience_store' | 'izakaya' | 'ramen_ticket_machine'
 //
-// SITUATION_ORDER fixes the picker card order (Tokyo is implicit).
+// SITUATION_ORDER fixes the picker card order. Tokyo is the current active city.
 //
 // IMPORTANT — correctness vs. presence: this file is authored for a first-time
 // traveler and is intentionally informal/approximate. The validator checks only
