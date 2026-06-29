@@ -6,42 +6,41 @@
 // This is NOT shipped to the browser and has NO runtime dependency: it is not
 // loaded by index.html, app.js, or sw.js. It exists only to gate the bundled
 // content at build/deploy time (see .github/workflows/deploy.yml). It imports
-// the SAME `situations` export the app uses, so the data the validator checks is
+// the SAME `cities` export the app uses, so the data the validator checks is
 // byte-for-byte the data the app renders.
 //
 // SCOPE — what this does and does NOT verify:
 //   * It checks the documented SHAPE and FIELD PRESENCE only:
-//       - exactly the three situation keys,
+//       - `CITY_ORDER` matches the `cities` keys,
+//       - each city has non-empty label / language / langCode, a non-empty
+//         `situationOrder` that matches its `situations` keys, and a non-empty
+//         `rescuePhrases` array of { en, romanized, native },
 //       - each situation has non-empty label / summary and a non-empty `expect`
 //         array of non-empty strings,
-//       - each step has non-empty title / whatHappens / staffPhraseRomaji /
-//         staffPhraseKanji / visitorResponse and a boolean `yourTurn`,
-//       - `tip`, when present, is a non-empty string,
-//       - the `rescuePhrases` export is a non-empty array of { en, romaji, kanji }.
+//       - each step has non-empty title / whatHappens / staffPhraseRomanized /
+//         staffPhraseNative / visitorResponse and a boolean `yourTurn`,
+//       - `tip`, when present, is a non-empty string.
 //   * It does NOT and CANNOT check CORRECTNESS — whether the romanization is
-//     right, the kanji is accurate, or the phrasing is polite/appropriate.
+//     right, the native script is accurate, or the phrasing is polite/appropriate.
 //     That is the job of the native-speaker review gate (content/REVIEW.md),
 //     which is the load-bearing defense this validator deliberately does not
 //     try to replace.
 //
 // EXIT BEHAVIOUR:
-//   * Any missing/empty REQUIRED field (or wrong situation key set) is an ERROR:
+//   * Any missing/empty REQUIRED field (or inconsistent key set) is an ERROR:
 //     all errors are collected and printed, then the process exits non-zero so
 //     the deploy fails before bad-shaped content can reach a user.
 //   * The 6–12 step-count bound is a SOFT WARNING only: it is logged but never
 //     fails the run, so an accurate short or long script is not rejected.
 
-import { situations, rescuePhrases } from './content.js';
-
-// The exact situation keys the app and this validator agree on (data_shapes).
-const EXPECTED_KEYS = ['convenience_store', 'izakaya', 'ramen_ticket_machine'];
+import { cities, CITY_ORDER } from './content.js';
 
 // Step fields that must be present and non-empty STRINGS on every step.
 const REQUIRED_STEP_FIELDS = [
   'title',
   'whatHappens',
-  'staffPhraseRomaji',
-  'staffPhraseKanji',
+  'staffPhraseRomanized',
+  'staffPhraseNative',
   'visitorResponse',
 ];
 
@@ -51,11 +50,14 @@ const REQUIRED_STEP_BOOL_FIELDS = ['yourTurn'];
 // Optional step fields that, IF present, must be non-empty.
 const OPTIONAL_STEP_FIELDS = ['tip'];
 
+// REQUIRED non-empty string fields on every city.
+const REQUIRED_CITY_STRING_FIELDS = ['label', 'language', 'langCode'];
+
 // REQUIRED non-empty string fields on every situation (besides `steps`).
 const REQUIRED_SITUATION_STRING_FIELDS = ['label', 'summary'];
 
 // REQUIRED non-empty string fields on every rescue phrase.
-const REQUIRED_PHRASE_FIELDS = ['en', 'romaji', 'kanji'];
+const REQUIRED_PHRASE_FIELDS = ['en', 'romanized', 'native'];
 
 // Soft (non-fatal) step-count bounds.
 const SOFT_MIN_STEPS = 6;
@@ -70,42 +72,104 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function checkSituationKeys(data) {
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) {
-    errors.push(
-      `situations: expected a plain object keyed by situationId, got ${
-        Array.isArray(data) ? 'array' : typeof data
-      }.`
-    );
-    return false;
-  }
-
-  const actualKeys = Object.keys(data);
-  const expectedSet = new Set(EXPECTED_KEYS);
-  const actualSet = new Set(actualKeys);
-
-  const missing = EXPECTED_KEYS.filter((k) => !actualSet.has(k));
-  const extra = actualKeys.filter((k) => !expectedSet.has(k));
-
-  if (missing.length > 0) {
-    errors.push(`situations: missing situation key(s): ${missing.join(', ')}.`);
-  }
-  if (extra.length > 0) {
-    errors.push(
-      `situations: unexpected situation key(s): ${extra.join(
-        ', '
-      )} (expected exactly: ${EXPECTED_KEYS.join(', ')}).`
-    );
-  }
-
-  return missing.length === 0 && extra.length === 0;
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function checkSituation(situationId, situation) {
-  const where = `situations.${situationId}`;
+function checkCityOrder() {
+  if (!isPlainObject(cities)) {
+    errors.push(`cities: expected a plain object keyed by cityId, got ${
+      Array.isArray(cities) ? 'array' : typeof cities
+    }.`);
+    return;
+  }
+  if (!Array.isArray(CITY_ORDER) || CITY_ORDER.length === 0) {
+    errors.push('CITY_ORDER: REQUIRED non-empty array of cityIds is missing or empty.');
+    return;
+  }
+  const cityKeys = new Set(Object.keys(cities));
+  const orderSet = new Set(CITY_ORDER);
+  const missing = CITY_ORDER.filter((id) => !cityKeys.has(id));
+  const extra = Object.keys(cities).filter((id) => !orderSet.has(id));
+  if (missing.length > 0) {
+    errors.push(`CITY_ORDER: references unknown city id(s): ${missing.join(', ')}.`);
+  }
+  if (extra.length > 0) {
+    errors.push(`cities: city id(s) not listed in CITY_ORDER: ${extra.join(', ')}.`);
+  }
+}
 
-  if (situation === null || typeof situation !== 'object' || Array.isArray(situation)) {
-    errors.push(`${where}: expected an object { label, steps }, got ${
+function checkPhrases(where, phrases) {
+  if (!Array.isArray(phrases)) {
+    errors.push(`${where}: REQUIRED rescuePhrases must be an array.`);
+    return;
+  }
+  if (phrases.length === 0) {
+    errors.push(`${where}: must contain at least one rescue phrase (found 0).`);
+    return;
+  }
+  phrases.forEach((phrase, index) => {
+    const at = `${where}[${index}]`;
+    if (!isPlainObject(phrase)) {
+      errors.push(`${at}: expected a { en, romanized, native } object.`);
+      return;
+    }
+    for (const field of REQUIRED_PHRASE_FIELDS) {
+      if (!isNonEmptyString(phrase[field])) {
+        errors.push(`${at}.${field}: REQUIRED field must be a non-empty string.`);
+      }
+    }
+  });
+}
+
+function checkCity(cityId, city) {
+  const where = `cities.${cityId}`;
+  if (!isPlainObject(city)) {
+    errors.push(`${where}: expected a city object, got ${
+      Array.isArray(city) ? 'array' : typeof city
+    }.`);
+    return;
+  }
+
+  for (const field of REQUIRED_CITY_STRING_FIELDS) {
+    if (!isNonEmptyString(city[field])) {
+      errors.push(`${where}.${field}: REQUIRED non-empty string is missing or empty.`);
+    }
+  }
+
+  checkPhrases(`${where}.rescuePhrases`, city.rescuePhrases);
+
+  if (!isPlainObject(city.situations)) {
+    errors.push(`${where}.situations: REQUIRED object of situations is missing.`);
+    return;
+  }
+  if (!Array.isArray(city.situationOrder) || city.situationOrder.length === 0) {
+    errors.push(`${where}.situationOrder: REQUIRED non-empty array is missing or empty.`);
+  } else {
+    // situationOrder and situations keys must agree, so the picker never points
+    // at a missing situation and no situation is silently unreachable.
+    const sitKeys = new Set(Object.keys(city.situations));
+    const orderSet = new Set(city.situationOrder);
+    const missing = city.situationOrder.filter((id) => !sitKeys.has(id));
+    const extra = Object.keys(city.situations).filter((id) => !orderSet.has(id));
+    if (missing.length > 0) {
+      errors.push(`${where}.situationOrder: references unknown situation(s): ${missing.join(', ')}.`);
+    }
+    if (extra.length > 0) {
+      errors.push(`${where}.situations: situation(s) not listed in situationOrder: ${extra.join(', ')}.`);
+    }
+  }
+
+  for (const situationId of Object.keys(city.situations)) {
+    checkSituation(cityId, situationId, city.situations[situationId]);
+  }
+}
+
+function checkSituation(cityId, situationId, situation) {
+  const where = `cities.${cityId}.situations.${situationId}`;
+
+  if (!isPlainObject(situation)) {
+    errors.push(`${where}: expected an object { label, summary, expect, steps }, got ${
       Array.isArray(situation) ? 'array' : typeof situation
     }.`);
     return;
@@ -117,8 +181,7 @@ function checkSituation(situationId, situation) {
     }
   }
 
-  // `expect` — REQUIRED non-empty array of non-empty strings (the "what to
-  // expect" overview bullets).
+  // `expect` — REQUIRED non-empty array of non-empty strings.
   if (!Array.isArray(situation.expect)) {
     errors.push(`${where}.expect: REQUIRED array of strings is missing or not an array.`);
   } else if (situation.expect.length === 0) {
@@ -135,13 +198,10 @@ function checkSituation(situationId, situation) {
     errors.push(`${where}.steps: REQUIRED array of steps is missing or not an array.`);
     return;
   }
-
   if (situation.steps.length === 0) {
     errors.push(`${where}.steps: must contain at least one step (found 0).`);
     return;
   }
-
-  // Soft step-count bound — logged, never fatal.
   if (
     situation.steps.length < SOFT_MIN_STEPS ||
     situation.steps.length > SOFT_MAX_STEPS
@@ -152,14 +212,14 @@ function checkSituation(situationId, situation) {
   }
 
   situation.steps.forEach((step, index) => {
-    checkStep(situationId, index, step);
+    checkStep(where, index, step);
   });
 }
 
-function checkStep(situationId, index, step) {
-  const where = `situations.${situationId}.steps[${index}]`;
+function checkStep(situationWhere, index, step) {
+  const where = `${situationWhere}.steps[${index}]`;
 
-  if (step === null || typeof step !== 'object' || Array.isArray(step)) {
+  if (!isPlainObject(step)) {
     errors.push(`${where}: expected a Step object, got ${
       Array.isArray(step) ? 'array' : typeof step
     }.`);
@@ -183,7 +243,6 @@ function checkStep(situationId, index, step) {
   }
 
   for (const field of OPTIONAL_STEP_FIELDS) {
-    // PRESENCE-aware, not REQUIRED: only validate when the field is provided.
     if (field in step && step[field] !== undefined && step[field] !== null) {
       if (!isNonEmptyString(step[field])) {
         errors.push(
@@ -194,46 +253,16 @@ function checkStep(situationId, index, step) {
   }
 }
 
-function checkRescuePhrases(data) {
-  const where = 'rescuePhrases';
-  if (!Array.isArray(data)) {
-    errors.push(`${where}: REQUIRED export must be an array of phrases.`);
-    return;
-  }
-  if (data.length === 0) {
-    errors.push(`${where}: must contain at least one phrase (found 0).`);
-    return;
-  }
-  data.forEach((phrase, index) => {
-    const at = `${where}[${index}]`;
-    if (phrase === null || typeof phrase !== 'object' || Array.isArray(phrase)) {
-      errors.push(`${at}: expected a { en, romaji, kanji } object.`);
-      return;
-    }
-    for (const field of REQUIRED_PHRASE_FIELDS) {
-      if (!isNonEmptyString(phrase[field])) {
-        errors.push(`${at}.${field}: REQUIRED field must be a non-empty string.`);
-      }
-    }
-  });
-}
-
 function main() {
   console.log('Travel Encounters Playbook — content shape validator (presence only, NOT correctness).');
 
-  const keysOk = checkSituationKeys(situations);
+  checkCityOrder();
 
-  if (keysOk || (situations && typeof situations === 'object' && !Array.isArray(situations))) {
-    // Validate each EXPECTED situation that is actually present, so we report
-    // as many concrete problems as possible in one pass.
-    for (const situationId of EXPECTED_KEYS) {
-      if (situations && Object.prototype.hasOwnProperty.call(situations, situationId)) {
-        checkSituation(situationId, situations[situationId]);
-      }
+  if (isPlainObject(cities)) {
+    for (const cityId of Object.keys(cities)) {
+      checkCity(cityId, cities[cityId]);
     }
   }
-
-  checkRescuePhrases(rescuePhrases);
 
   for (const warning of warnings) {
     console.warn(`WARN  ${warning}`);
@@ -255,13 +284,20 @@ function main() {
     process.exit(1);
   }
 
+  const cityCount = isPlainObject(cities) ? Object.keys(cities).length : 0;
+  const sitCount = isPlainObject(cities)
+    ? Object.values(cities).reduce(
+        (n, c) => n + (isPlainObject(c.situations) ? Object.keys(c.situations).length : 0),
+        0
+      )
+    : 0;
   console.log(
-    `Content validation PASSED: ${EXPECTED_KEYS.length} situations OK` +
+    `Content validation PASSED: ${cityCount} cities, ${sitCount} situations OK` +
       `${warnings.length ? `, ${warnings.length} soft warning(s)` : ''}.`
   );
   console.log(
-    'Reminder: correctness (accurate romaji/kanji, polite phrasing) is verified ' +
-      'by the native-speaker review gate (content/REVIEW.md), not by this script.'
+    'Reminder: correctness (accurate romanization/native script, polite phrasing) ' +
+      'is verified by the native-speaker review gate (content/REVIEW.md), not by this script.'
   );
 }
 

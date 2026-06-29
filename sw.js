@@ -13,7 +13,7 @@
 
 // Bump CACHE_NAME on every redeploy to cache-bust old shells. The 'activate'
 // handler deletes any cache whose name doesn't match this version.
-const CACHE_NAME = 'encounters-v4';
+const CACHE_NAME = 'encounters-v5';
 
 // The shared precache list. Must agree with index.html's asset references.
 // Relative ('./') so it resolves correctly under /<repo>/.
