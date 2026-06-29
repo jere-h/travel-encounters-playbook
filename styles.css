@@ -230,17 +230,19 @@ button {
   margin-bottom: var(--space-5);
 }
 
-/* Back + city name + Phrases on one header row. */
+/* Back + city name + Rescue phrases. Wraps the phrases button to its own row
+   on narrow screens instead of squeezing the city name. */
 .situation-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
 }
 
 .situation-city-name {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 7rem;
   font-size: var(--font-size-3);
   font-weight: 700;
   line-height: 1.2;
@@ -265,6 +267,10 @@ button {
   letter-spacing: 0.02em;
   box-shadow: var(--shadow);
   transition: background 0.12s ease, filter 0.12s ease;
+}
+
+.phrases-btn-icon {
+  margin-right: 0.3em;
 }
 
 .phrases-btn:hover {
@@ -374,13 +380,14 @@ button {
 .overview-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
 }
 
 .overview-name {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 7rem;
   font-size: var(--font-size-3);
   font-weight: 700;
   line-height: 1.2;
