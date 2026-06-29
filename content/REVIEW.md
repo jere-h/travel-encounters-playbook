@@ -28,9 +28,12 @@ in `content.js` against these criteria:
 3. **Visitor response fit** — `visitorResponse` is polite, natural, and
    genuinely usable by a non-speaker. It is not rude, not over-formal to the
    point of being odd, and actually answers what the staff said.
-4. **Cultural accuracy / non-offensiveness** — `whatHappens` and any `tip`
-   describe the real interaction without stereotype, condescension, or error.
-   Nothing in the situation could embarrass or offend the traveler or the staff.
+4. **Cultural accuracy / non-offensiveness** — `whatHappens`, the situation
+   `summary`, the `expect` "what to expect" lines, each step `title`, and any
+   `tip` describe the real interaction without stereotype, condescension, or
+   error. Nothing in the situation could embarrass or offend the traveler or the
+   staff. The per-step `yourTurn` flag (does the visitor actually have to act
+   here?) is accurate.
 5. **Scope honesty** — content stays within the shipped "Tokyo · 3 situations"
    scope and the disclaimer (informal, may be imperfect, not official) holds true.
 
@@ -81,6 +84,18 @@ A situation **passes** only when all five hold for **every** step in it.
 |----------|------|----------------------|--------------|-------------------|---------|-------|
 | _pending_ | _YYYY-MM-DD_ | _commit / tag_ | _ok / issues_ | _ok / issues_ | _PASS / PASS w/ fixes / FAIL_ | _Initial authored content has NOT yet been reviewed by a native speaker. Do not deploy this situation until this row is replaced with a real sign-off._ |
 
+### Rescue phrases (`rescuePhrases`)
+
+The always-available "rescue" phrases in `content.js` are shown on every screen
+(the Phrases drawer) and are **situation-independent**, so they need their own
+sign-off. A reviewer checks each `{ en, romaji, kanji }` entry for accurate,
+natural, polite Japanese and a correct English gloss — the same romanization and
+script-accuracy bar as the situation steps.
+
+| Reviewer | Date | Content rev reviewed | Romanization | Cultural accuracy | Verdict | Notes |
+|----------|------|----------------------|--------------|-------------------|---------|-------|
+| _pending_ | _YYYY-MM-DD_ | _commit / tag_ | _ok / issues_ | _ok / issues_ | _PASS / PASS w/ fixes / FAIL_ | _Newly introduced rescue phrases have NOT yet been reviewed by a native speaker. Do not ship as reviewed until this row is replaced with a real sign-off._ |
+
 ---
 
 ## Release gate (summary)
@@ -90,7 +105,12 @@ A deploy is allowed only when **all** of the following hold:
 - [ ] `node validate-content.mjs` exits `0` (field presence — automated).
 - [ ] Every situation being shipped has a **current** `PASS` (or `PASS w/ fixes`,
       with the fixes applied and re-validated) row above, covering the exact
-      content revision being deployed.
+      content revision being deployed. Note: the neurodivergent-first refactor
+      added new authored copy to every situation (`title`, `summary`, `expect`,
+      `yourTurn`), so any prior sign-off is **stale** and the situation must be
+      re-reviewed against the current `content.js`.
+- [ ] The **Rescue phrases** table above has a current `PASS` (the rescue
+      phrases contain Japanese that the situation sign-offs do not cover).
 - [ ] No shipped situation has an open `FAIL`.
 
 If a situation's `content.js` changed since its last `PASS`, its sign-off is

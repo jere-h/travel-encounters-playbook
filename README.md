@@ -1,16 +1,25 @@
-# Travel Encounters Playbook — In-the-Moment Social Scripts
+# Travel Encounters Playbook — Know What to Expect
 
-A fully static, offline-capable PWA that gives travelers a large-text,
-**one-step-per-screen** social script for key situations and venues. Starting
-with Tokyo:
+A fully static, offline-capable PWA of **calm, predictable social scripts for
+navigating Japan in a foreign language**, built specifically for **neurodivergent
+travelers**. The whole app is organized around two needs: *knowing exactly what
+will happen before it happens*, and *getting straight to the moment you're in
+right now* — without scrolling through every step. Starting with Tokyo:
 
 - **Convenience Store** (konbini checkout)
 - **Izakaya** (being seated + ordering)
 - **Ramen Ticket Machine** (buying a meal ticket before you sit)
 
-Pick a situation, then step through what staff will say (English + romaji +
-kanji), exactly what *you* say back, and an optional per-step Cultural Tips
-drawer — all reachable in **at most three taps**.
+Pick a situation and you first see an **overview**: a one-line summary of the
+whole interaction, a short *"what to expect"* list (duration, noise, the
+surprises — e.g. the izakaya `otoshi` seat charge), and a **tappable list of
+every step**. Tap any step to **jump straight to it** — so mid-meal, you can go
+right to "Ask for the bill" instead of swiping through the start. Each step shows
+what staff will say (English + romaji + kanji), exactly what *you* say back, a
+clear **"Your turn" vs "Just listen"** marker, and an inline Cultural Tip when
+one applies. A **Phrases** button on every screen opens always-available *rescue
+phrases* ("please wait a moment", "I don't understand", "do you speak English?")
+for any moment that goes off-script.
 
 There is **no bundler and no backend**. Plain HTML, one stylesheet, and two ES
 modules (`content.js` holds the data, `app.js` holds the logic) render a
@@ -22,18 +31,22 @@ mode** under the GitHub Pages `/<repo>/` base.
 
 ## Scope (deliberate, and on purpose)
 
-This app intentionally ships **Tokyo · 3 situations** as the debut city. The
-situation view prints that scope line (`#scope-line`: "Tokyo · 3 situations ·
-more cities coming") so the user is never misled about coverage. Three fully authored,
-native-reviewed scripts that actually work in the moment beat fifty thin,
-unreviewed ones. Adding a situation is a deliberate, reviewed act (see the
-release checklist), not a drive-by edit.
+This app intentionally ships **Tokyo · 3 situations**. The picker prints that
+scope line (`#scope-line`: "Tokyo · 3 situations") so the user is never misled
+about coverage. Three fully authored, native-reviewed scripts that actually work
+in the moment beat fifty thin, unreviewed ones. Adding a situation is a
+deliberate, reviewed act (see the release checklist), not a drive-by edit.
+
+There is deliberately **no city-selection layer**. An earlier version showed
+greyed-out "coming soon" cities; for a minimal-frills, predictable app those
+dead options were removed, so the app opens directly on the three situations. A
+city list is only worth reintroducing when a real second city actually ships.
 
 ### Disclaimer (persistent, on every screen)
 
-A `.disclaimer` line is present on **both** the picker and the step view. It
-states plainly that the phrasing is **informal, may be imperfect, and is not
-official guidance**. Real interactions vary; the script is a confidence aid, not
+A `.disclaimer` line is present on **every view** — the picker, the overview, and
+the step view. It states plainly that the phrasing is **informal, may be
+imperfect, and is not official guidance**. Real interactions vary; the script is a confidence aid, not
 a guarantee. This line ships on purpose and must not be removed — it is part of
 the honesty contract of the product.
 
@@ -75,10 +88,10 @@ a root-absolute `/…`; that breaks the GitHub Pages base.
 
 | Path | Role |
 |------|------|
-| `index.html` | Semantic shell: `#picker` + `#stepview` views, disclaimer, iOS install hint, Tips drawer. Links `./styles.css`, `./manifest.webmanifest`, loads `./app.js` as a module. No inline app logic, no inline SW registration. |
-| `styles.css` | Design tokens, large-text hierarchy, mobile-first responsive layout. |
-| `content.js` | Authoritative content. `export const situations` + `export const SITUATION_ORDER`. All three situations fully authored. |
-| `app.js` | Sole module entry. Renders picker + step view, owns in-memory state, registers `./sw.js`, shows the iOS hint. |
+| `index.html` | Semantic shell: `#picker` + `#overview` + `#stepview` views, disclaimer, iOS install hint, Tips drawer, Phrases drawer. Links `./styles.css`, `./manifest.webmanifest`, loads `./app.js` as a module. No inline app logic, no inline SW registration. |
+| `styles.css` | Design tokens, large-text hierarchy, mobile-first responsive layout, shared `.drawer` bottom-sheet. |
+| `content.js` | Authoritative content. `export const situations` (each with `summary` + `expect`; each step with `title` + `yourTurn`) + `export const SITUATION_ORDER` + `export const rescuePhrases`. All three situations fully authored. |
+| `app.js` | Sole module entry. Renders picker + overview + step view, owns in-memory state, the reusable drawer helper, registers `./sw.js`, shows the iOS hint. |
 | `manifest.webmanifest` | PWA manifest; relative `start_url`/`scope` (`./`). |
 | `sw.js` | Service worker; versioned cache, relative precache list, cache-first. |
 | `validate-content.mjs` | Dev-only Node validator (field presence). |
@@ -105,9 +118,13 @@ node validate-content.mjs
 It checks:
 
 - exactly the three keys `convenience_store`, `izakaya`, `ramen_ticket_machine`;
-- every step has **non-empty** `whatHappens`, `staffPhraseRomaji`,
-  `staffPhraseKanji`, and `visitorResponse`;
-- when a `tip` is present, it is non-empty.
+- every situation has a non-empty `label` and `summary`, and a non-empty
+  `expect` array of non-empty strings;
+- every step has **non-empty** `title`, `whatHappens`, `staffPhraseRomaji`,
+  `staffPhraseKanji`, and `visitorResponse`, plus a boolean `yourTurn`;
+- when a `tip` is present, it is non-empty;
+- the `rescuePhrases` export is a non-empty array of `{ en, romaji, kanji }`
+  with all three fields non-empty.
 
 It **exits non-zero** on any missing/empty REQUIRED field — that's the deploy
 blocker. The **6–12 step count** is a **soft warning only** (logged, non-fatal):
@@ -157,12 +174,14 @@ Do **not** deploy unless **all** of these are true:
 
 - [ ] `node validate-content.mjs` exits **0** locally (and the Actions run is green).
 - [ ] `content/REVIEW.md` has a **current** sign-off row for **every** situation
-      you are shipping — reviewer name + date + pass for both romanization and
-      cultural accuracy. If content for a situation changed since its last
-      sign-off, that row is **stale** and must be re-signed before release.
-- [ ] The persistent `.disclaimer` line still renders on **both** the picker and
-      the step view.
-- [ ] The `#scope-line` still honestly reflects coverage ("Tokyo · 3 situations · more cities coming").
+      you are shipping **and** for the **rescue phrases** — reviewer name + date +
+      pass for both romanization and cultural accuracy. If content changed since
+      its last sign-off, that row is **stale** and must be re-signed before
+      release. (The neurodivergent-first refactor added new authored copy to
+      every situation, so all situation rows are currently stale.)
+- [ ] The persistent `.disclaimer` line still renders on **every** view (picker,
+      overview, step view).
+- [ ] The `#scope-line` still honestly reflects coverage ("Tokyo · 3 situations").
 - [ ] The **offline acceptance steps below pass on a real iOS Safari device**
       against the actual Pages URL — not just localhost, not just desktop.
 - [ ] No uncaught errors in the browser console on the picker and across a full
@@ -183,9 +202,11 @@ first online load, so after that, **zero network requests should fail**.
    and the versioned cache contains `./`, `./index.html`, `./styles.css`,
    `./app.js`, `./content.js`, `./manifest.webmanifest`, and the manifest icons.
 3. Switch DevTools → Network to **Offline**.
-4. Hard-reload. The picker must render, all three situations must open, and you
-   must be able to step through every step (incl. kanji/romaji and the Tips
-   drawer) with **no failed requests** in the Network panel.
+4. Hard-reload. The picker must render, each situation's **overview** (summary +
+   "what to expect" + jump list) must open, jumping to any step must work, and you
+   must be able to step through every step (incl. kanji/romaji, the inline Tips
+   drawer, and the Phrases drawer) with **no failed requests** in the Network
+   panel.
 
 ### REAL iOS-Safari airplane-mode cold reload (required for release)
 
@@ -209,11 +230,17 @@ iPhone with their data turned off. Run it against the **deployed Pages URL**
    - The **picker** renders with exactly **three** cards in
      `convenience_store → izakaya → ramen_ticket_machine` order, the scope line,
      and the disclaimer.
-   - Opening any situation shows **populated** step content (English, romaji,
-     kanji, your response) with **no blank fields and no spinner/offline error**.
-   - You can advance with **swipe-left / the Next zone** and go **back** with
-     swipe-right / Back; a full-screen tap **does not** advance.
-   - The **Tips** drawer opens and closes **without** changing the current step.
+   - Opening any situation shows the **overview** — summary, "what to expect"
+     bullets, and a numbered jump list with "Your turn" / "Just listen" tags.
+   - Tapping a jump-list row lands **directly** on that step; **Start from the
+     beginning** lands on step 1. Step content (title, English, romaji, kanji,
+     your response, turn marker) is **populated** with **no blank fields and no
+     spinner/offline error**.
+   - You can advance with **swipe-left / the Next zone**; a full-screen tap
+     **does not** advance. **Back** returns to the previous step, and from step 1
+     to the overview. `Steps` reopens the jump list.
+   - The **Tips** and **Phrases** drawers open and close **without** changing the
+     current step.
    - Stepping through **all three** situations end to end works with **no**
      network and no error screen.
 
@@ -231,13 +258,23 @@ and the precache list must match the assets `index.html` references.
 
 ## Interaction model (so reviewers test the right thing)
 
-- **Three taps, max:** tap a situation card (tap 1) → step through (tap Next /
-  swipe-left) → optionally open Tips (tap). Nothing essential is deeper.
+- **Overview-first, two taps to any moment:** tap a situation card (tap 1) →
+  the **overview** shows the summary, "what to expect", and a jump list → tap the
+  exact step you need (tap 2), or tap **Start from the beginning**. Mid-scenario,
+  this is how you reach "Ask for the bill" without scrolling.
+- **`#steps-btn`** on the step view reopens the overview/jump list at any time, so
+  re-jumping is always one tap away.
+- **"Your turn" vs "Just listen"** — every step renders `#step-turn` from the
+  step's `yourTurn` flag, so it's never ambiguous whether the user must act.
 - **Forward advance is intentional only:** swipe-**left** or the explicit
   `#next-zone`. A **full-screen tap never advances** — so reaching for Tips or
   Back can't skip a step.
-- **Back** is swipe-right or `#back-btn`; the step index is clamped to bounds.
-- **Tips** open/close `#tips-drawer` without mutating the step index.
+- **Back** is `#back-btn`; from step 1 it returns to the overview (not the
+  picker). The step index is clamped to bounds.
+- **Tips** are an inline button shown only when the current step has a tip;
+  **Phrases** (rescue phrases) are reachable from every screen. Both use the same
+  accessible `.drawer` bottom-sheet (Tab-trapped, Esc-closable, focus restored to
+  the opener) and never mutate the step index.
 - State is **in-memory only** and never persisted — relaunching always starts
   fresh at the picker.
 
@@ -246,8 +283,10 @@ and the precache list must match the assets `index.html` references.
 ## Customizing the content
 
 A user can fork this and swap in their own scripts by editing the `situations`
-object in `content.js` — keeping the exact three keys and the Step shape
-(`whatHappens`, `staffPhraseRomaji`, `staffPhraseKanji`, `visitorResponse`,
-optional `tip`). Then: run `node validate-content.mjs`, get a fresh
-`content/REVIEW.md` sign-off, and deploy via the workflow. The same two gates
-apply to your content as to ours.
+object in `content.js` — keeping the exact three keys, the situation shape
+(`label`, `summary`, `expect`, `steps`), and the Step shape (`title`, `yourTurn`,
+`whatHappens`, `staffPhraseRomaji`, `staffPhraseKanji`, `visitorResponse`,
+optional `tip`) — and editing the `rescuePhrases` export. Then: run
+`node validate-content.mjs`, get a fresh `content/REVIEW.md` sign-off (situations
+**and** rescue phrases), and deploy via the workflow. The same two gates apply to
+your content as to ours.

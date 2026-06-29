@@ -12,9 +12,12 @@
 // SCOPE — what this does and does NOT verify:
 //   * It checks the documented SHAPE and FIELD PRESENCE only:
 //       - exactly the three situation keys,
-//       - each step has non-empty whatHappens / staffPhraseRomaji /
-//         staffPhraseKanji / visitorResponse,
-//       - `tip`, when present, is a non-empty string.
+//       - each situation has non-empty label / summary and a non-empty `expect`
+//         array of non-empty strings,
+//       - each step has non-empty title / whatHappens / staffPhraseRomaji /
+//         staffPhraseKanji / visitorResponse and a boolean `yourTurn`,
+//       - `tip`, when present, is a non-empty string,
+//       - the `rescuePhrases` export is a non-empty array of { en, romaji, kanji }.
 //   * It does NOT and CANNOT check CORRECTNESS — whether the romanization is
 //     right, the kanji is accurate, or the phrasing is polite/appropriate.
 //     That is the job of the native-speaker review gate (content/REVIEW.md),
@@ -28,21 +31,31 @@
 //   * The 6–12 step-count bound is a SOFT WARNING only: it is logged but never
 //     fails the run, so an accurate short or long script is not rejected.
 
-import { situations } from './content.js';
+import { situations, rescuePhrases } from './content.js';
 
 // The exact situation keys the app and this validator agree on (data_shapes).
 const EXPECTED_KEYS = ['convenience_store', 'izakaya', 'ramen_ticket_machine'];
 
-// Step fields that must be present and non-empty on every step.
+// Step fields that must be present and non-empty STRINGS on every step.
 const REQUIRED_STEP_FIELDS = [
+  'title',
   'whatHappens',
   'staffPhraseRomaji',
   'staffPhraseKanji',
   'visitorResponse',
 ];
 
+// Step fields that must be present and of BOOLEAN type on every step.
+const REQUIRED_STEP_BOOL_FIELDS = ['yourTurn'];
+
 // Optional step fields that, IF present, must be non-empty.
 const OPTIONAL_STEP_FIELDS = ['tip'];
+
+// REQUIRED non-empty string fields on every situation (besides `steps`).
+const REQUIRED_SITUATION_STRING_FIELDS = ['label', 'summary'];
+
+// REQUIRED non-empty string fields on every rescue phrase.
+const REQUIRED_PHRASE_FIELDS = ['en', 'romaji', 'kanji'];
 
 // Soft (non-fatal) step-count bounds.
 const SOFT_MIN_STEPS = 6;
@@ -98,8 +111,24 @@ function checkSituation(situationId, situation) {
     return;
   }
 
-  if (!isNonEmptyString(situation.label)) {
-    errors.push(`${where}.label: REQUIRED non-empty string is missing or empty.`);
+  for (const field of REQUIRED_SITUATION_STRING_FIELDS) {
+    if (!isNonEmptyString(situation[field])) {
+      errors.push(`${where}.${field}: REQUIRED non-empty string is missing or empty.`);
+    }
+  }
+
+  // `expect` — REQUIRED non-empty array of non-empty strings (the "what to
+  // expect" overview bullets).
+  if (!Array.isArray(situation.expect)) {
+    errors.push(`${where}.expect: REQUIRED array of strings is missing or not an array.`);
+  } else if (situation.expect.length === 0) {
+    errors.push(`${where}.expect: must contain at least one "what to expect" line (found 0).`);
+  } else {
+    situation.expect.forEach((line, i) => {
+      if (!isNonEmptyString(line)) {
+        errors.push(`${where}.expect[${i}]: must be a non-empty string.`);
+      }
+    });
   }
 
   if (!Array.isArray(situation.steps)) {
@@ -145,6 +174,14 @@ function checkStep(situationId, index, step) {
     }
   }
 
+  for (const field of REQUIRED_STEP_BOOL_FIELDS) {
+    if (!(field in step)) {
+      errors.push(`${where}.${field}: REQUIRED field is missing.`);
+    } else if (typeof step[field] !== 'boolean') {
+      errors.push(`${where}.${field}: REQUIRED field must be a boolean (true/false).`);
+    }
+  }
+
   for (const field of OPTIONAL_STEP_FIELDS) {
     // PRESENCE-aware, not REQUIRED: only validate when the field is provided.
     if (field in step && step[field] !== undefined && step[field] !== null) {
@@ -155,6 +192,30 @@ function checkStep(situationId, index, step) {
       }
     }
   }
+}
+
+function checkRescuePhrases(data) {
+  const where = 'rescuePhrases';
+  if (!Array.isArray(data)) {
+    errors.push(`${where}: REQUIRED export must be an array of phrases.`);
+    return;
+  }
+  if (data.length === 0) {
+    errors.push(`${where}: must contain at least one phrase (found 0).`);
+    return;
+  }
+  data.forEach((phrase, index) => {
+    const at = `${where}[${index}]`;
+    if (phrase === null || typeof phrase !== 'object' || Array.isArray(phrase)) {
+      errors.push(`${at}: expected a { en, romaji, kanji } object.`);
+      return;
+    }
+    for (const field of REQUIRED_PHRASE_FIELDS) {
+      if (!isNonEmptyString(phrase[field])) {
+        errors.push(`${at}.${field}: REQUIRED field must be a non-empty string.`);
+      }
+    }
+  });
 }
 
 function main() {
@@ -171,6 +232,8 @@ function main() {
       }
     }
   }
+
+  checkRescuePhrases(rescuePhrases);
 
   for (const warning of warnings) {
     console.warn(`WARN  ${warning}`);
