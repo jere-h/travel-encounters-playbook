@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// validate-content.mjs — DEV-ONLY content validator for Tokyo Doorway.
+// validate-content.mjs — DEV-ONLY content validator for Travel Encounters Playbook.
 //
 // Run with:  node validate-content.mjs
 //
@@ -158,7 +158,7 @@ function checkStep(situationId, index, step) {
 }
 
 function main() {
-  console.log('Tokyo Doorway — content shape validator (presence only, NOT correctness).');
+  console.log('Travel Encounters Playbook — content shape validator (presence only, NOT correctness).');
 
   const keysOk = checkSituationKeys(situations);
 

@@ -1,7 +1,7 @@
 {
-  "name": "Tokyo Doorway — In-the-Moment Social Scripts",
-  "short_name": "Tokyo Doorway",
-  "description": "Large-text, one-step-per-screen social scripts for three Tokyo venues (convenience store, izakaya, ramen ticket machine). Offline-capable.",
+  "name": "Travel Encounters Playbook — In-the-Moment Social Scripts",
+  "short_name": "Encounters",
+  "description": "Large-text, one-step-per-screen social scripts for travelers worldwide. Offline-capable.",
   "lang": "en",
   "dir": "ltr",
   "start_url": "./",

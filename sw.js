@@ -1,4 +1,4 @@
-// sw.js — Tokyo Doorway service worker (offline / airplane-mode shell + content).
+// sw.js — Travel Encounters Playbook service worker (offline / airplane-mode shell + content).
 //
 // Standalone classic worker (NOT an ES module). Precaches the full app shell and
 // the inline content module so that, after ONE online load, the picker and every
@@ -13,7 +13,7 @@
 
 // Bump CACHE_NAME on every redeploy to cache-bust old shells. The 'activate'
 // handler deletes any cache whose name doesn't match this version.
-const CACHE_NAME = 'tokyo-doorway-v1';
+const CACHE_NAME = 'encounters-v3';
 
 // The shared precache list. Must agree with index.html's asset references.
 // Relative ('./') so it resolves correctly under /<repo>/.
